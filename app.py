@@ -175,20 +175,30 @@ if USE_RUMPS:
                 quit_button=None,
                 template=True,
             )
+
+            # Save icons to temp files
+            self._icon_on = "/tmp/rayonics_icon_on.png"
+            self._icon_off = "/tmp/rayonics_icon_off.png"
+            make_icon("#3ecf8e", 44).save(self._icon_on)
+            make_icon("#555555", 44).save(self._icon_off)
+
             self.menu = [
-                rumps.MenuItem("Open Browser", callback=self.open_browser),
+                rumps.MenuItem("🟢 Server Running", callback=None),
+                rumps.MenuItem(f"    Port: {PORT}", callback=None),
                 None,  # separator
-                rumps.MenuItem("Server: Starting...", callback=None),
+                rumps.MenuItem("Open Browser", callback=self.open_browser),
+                None,
+                rumps.MenuItem("Stop Server", callback=self.toggle_server),
                 None,
                 rumps.MenuItem("Quit", callback=self.quit_app),
             ]
-            self._status_item = self.menu["Server: Starting..."]
+            self._status_item = self.menu["🟢 Server Running"]
             self._status_item.set_callback(None)
+            self._port_item = self.menu[f"    Port: {PORT}"]
+            self._port_item.set_callback(None)
+            self._toggle_item = self.menu["Stop Server"]
 
-            # Save icon to temp file for rumps
-            icon_path = Path("/tmp/rayonics_icon.png")
-            make_icon("#3ecf8e", 44).save(icon_path)
-            self.icon = str(icon_path)
+            self.icon = self._icon_on
 
             # Start server
             server.start()
@@ -199,9 +209,30 @@ if USE_RUMPS:
 
         def _check_status(self, _):
             if server.running:
-                self._status_item.title = f"Server: Running (:{PORT})"
+                self._status_item.title = "🟢 Server Running"
+                self._port_item.title = f"    http://localhost:{PORT}"
+                self._toggle_item.title = "⏹ Stop Server"
+                self.icon = self._icon_on
+                self.title = ""
             else:
-                self._status_item.title = "Server: Stopped"
+                self._status_item.title = "🔴 Server Stopped"
+                self._port_item.title = ""
+                self._toggle_item.title = "▶ Start Server"
+                self.icon = self._icon_off
+                self.title = ""
+
+        def toggle_server(self, _):
+            if server.running:
+                server.stop()
+            else:
+                server.start()
+                # Open browser after a delay
+                def delayed_open():
+                    import time
+                    time.sleep(1.5)
+                    if server.running:
+                        webbrowser.open(f"http://{HOST}:{PORT}")
+                threading.Thread(target=delayed_open, daemon=True).start()
 
         def open_browser(self, _):
             if server.running:
