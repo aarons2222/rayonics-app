@@ -17,8 +17,6 @@
 
   const btnConnectServer = $("#btn-connect-server");
   const btnScan          = $("#btn-scan");
-  const btnReadKey       = $("#btn-read-key");
-  const btnReadEvents    = $("#btn-read-events");
   const btnDisconnect    = $("#btn-disconnect");
   const btnClearLog      = $("#btn-clear-log");
   const chkClear         = $("#chk-clear-events");
@@ -174,7 +172,7 @@
         el.addEventListener("click", () => {
           if (busy) return;
           busy = true;
-          send({ action: "connect", address: d.address });
+          send({ action: "connect", address: d.address, clear: chkClear.checked });
           bleIndicator.className = "indicator connecting";
           bleLabel.textContent = `Connecting to ${d.name || d.address}…`;
         });
@@ -230,8 +228,6 @@
     connected = msg.connected;
     setBLE(msg.connected, msg.device || "");
 
-    btnReadKey.disabled    = !msg.connected;
-    btnReadEvents.disabled = !msg.connected;
     btnDisconnect.disabled = !msg.connected;
 
     if (!msg.connected) {
@@ -307,18 +303,6 @@
     btnScan.textContent = "Scanning…";
     deviceList.innerHTML = "";
     send({ action: "scan" });
-  });
-
-  btnReadKey.addEventListener("click", () => {
-    if (busy) return;
-    busy = true;
-    send({ action: "read_key" });
-  });
-
-  btnReadEvents.addEventListener("click", () => {
-    if (busy) return;
-    busy = true;
-    send({ action: "read_events", clear: chkClear.checked });
   });
 
   btnDisconnect.addEventListener("click", () => {

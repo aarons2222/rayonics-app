@@ -148,7 +148,7 @@ class BLEHandler:
             elif action == "scan":
                 await self.scan()
             elif action == "connect":
-                await self.connect(msg["address"])
+                await self.connect(msg["address"], clear=msg.get("clear", False))
             elif action == "disconnect":
                 await self.disconnect()
             elif action == "read_key":
@@ -202,7 +202,7 @@ class BLEHandler:
 
     # ── connect + authenticate ────────────────────────────────────────────
 
-    async def connect(self, address: str):
+    async def connect(self, address: str, clear: bool = False):
         # Disconnect previous if any
         await self.disconnect(silent=True)
 
@@ -297,6 +297,11 @@ class BLEHandler:
 
         await asyncio.sleep(0.2)
         await self._status()
+
+        # Auto-read key info and events after successful auth
+        await self.read_key()
+        await asyncio.sleep(0.2)
+        await self.read_events(clear=clear)
 
     # ── disconnect ────────────────────────────────────────────────────────
 
