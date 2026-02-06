@@ -1,49 +1,90 @@
 #!/usr/bin/env python3
 """
-Rayonics Key Reader — GUI launcher.
+Rayonics Key Reader — System tray / menu bar app.
 
-A simple tkinter window that starts/stops the server
-and shows the log output. Opens the browser automatically.
+Sits quietly in the menu bar (macOS) or system tray (Windows/Linux).
+Runs the WebSocket server in the background.
 """
 
 import asyncio
 import json
-import queue
 import sys
 import threading
-import tkinter as tk
-from tkinter import scrolledtext
 import webbrowser
-from datetime import datetime
 from pathlib import Path
 
 from aiohttp import web
+from PIL import Image, ImageDraw
 
 from ble_handler import BLEHandler
+
+# Use rumps on macOS for native menu bar, pystray elsewhere
+if sys.platform == "darwin":
+    try:
+        import rumps
+        USE_RUMPS = True
+    except ImportError:
+        USE_RUMPS = False
+else:
+    USE_RUMPS = False
+
+if not USE_RUMPS:
+    import pystray
 
 HOST = "localhost"
 PORT = 8765
 STATIC_DIR = Path(__file__).parent / "static"
 
 
-class WebServer:
-    """Async web server that can be started/stopped from another thread."""
+# ── Icon generation ───────────────────────────────────────────────────────
 
-    def __init__(self, log_queue: queue.Queue):
-        self._log = log_queue
+def make_icon(color="#3ecf8e", size=64):
+    """Generate a simple key icon."""
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    # Draw a key shape
+    cx, cy = size // 2, size // 2
+    r = size // 4
+
+    # Key head (circle)
+    draw.ellipse(
+        [cx - r, cy - r - 4, cx + r, cy + r - 4],
+        outline=color, width=3
+    )
+    # Key shaft
+    draw.rectangle(
+        [cx - 3, cy + r - 6, cx + 3, cy + size // 2 + 4],
+        fill=color
+    )
+    # Key teeth
+    draw.rectangle(
+        [cx + 3, cy + size // 2 - 4, cx + 10, cy + size // 2 + 4],
+        fill=color
+    )
+    draw.rectangle(
+        [cx + 3, cy + size // 2 - 14, cx + 8, cy + size // 2 - 6],
+        fill=color
+    )
+
+    return img
+
+
+# ── Web Server ────────────────────────────────────────────────────────────
+
+class WebServer:
+    """Async web server running in a background thread."""
+
+    def __init__(self):
         self._runner = None
         self._loop = None
         self._thread = None
+        self._task = None
         self.running = False
-
-    def log(self, msg: str, level: str = "info"):
-        ts = datetime.now().strftime("%H:%M:%S")
-        self._log.put((ts, msg, level))
 
     async def _ws_handler(self, request):
         ws = web.WebSocketResponse()
         await ws.prepare(request)
-        self.log(f"Client connected from {request.remote}")
 
         async def send_json(msg: dict):
             if not ws.closed:
@@ -59,16 +100,11 @@ class WebServer:
                     except json.JSONDecodeError:
                         await send_json({"type": "error", "message": "Invalid JSON"})
                         continue
-                    # Log actions
-                    action = data.get("action", "?")
-                    if action not in ("set_codes",):
-                        self.log(f"← {action}", "info")
                     await handler.handle(data)
                 elif msg.type == web.WSMsgType.ERROR:
-                    self.log(f"WS error: {ws.exception()}", "error")
+                    pass
         finally:
             await handler.disconnect(silent=True)
-            self.log("Client disconnected")
 
         return ws
 
@@ -89,9 +125,7 @@ class WebServer:
         site = web.TCPSite(self._runner, HOST, PORT)
         await site.start()
         self.running = True
-        self.log(f"Server started on http://{HOST}:{PORT}", "success")
 
-        # Keep running until cancelled
         try:
             while True:
                 await asyncio.sleep(1)
@@ -100,7 +134,6 @@ class WebServer:
         finally:
             await self._runner.cleanup()
             self.running = False
-            self.log("Server stopped", "info")
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -112,8 +145,8 @@ class WebServer:
             self._task = self._loop.create_task(self._run())
             try:
                 self._loop.run_until_complete(self._task)
-            except Exception as e:
-                self.log(f"Server error: {e}", "error")
+            except Exception:
+                pass
             finally:
                 self._loop.close()
                 self._loop = None
@@ -127,159 +160,110 @@ class WebServer:
             self._loop.call_soon_threadsafe(self._task.cancel)
 
 
-class App:
-    """Tkinter GUI for the server."""
+server = WebServer()
 
-    BG = "#0f1117"
-    SURFACE = "#1a1d27"
-    BORDER = "#2a2d3a"
-    TEXT = "#e0e0e8"
-    DIM = "#8888a0"
-    ACCENT = "#5b8def"
-    GREEN = "#3ecf8e"
-    RED = "#ef5b5b"
-    WARN = "#f0b840"
-    FONT = ("SF Mono", 11) if sys.platform == "darwin" else ("Consolas", 10)
-    FONT_UI = ("SF Pro Display", 13) if sys.platform == "darwin" else ("Segoe UI", 11)
 
-    def __init__(self):
-        self.root = tk.Tk()
-        self.root.title("Rayonics Key Reader")
-        self.root.configure(bg=self.BG)
-        self.root.geometry("700x500")
-        self.root.minsize(500, 350)
+# ── macOS menu bar (rumps) ────────────────────────────────────────────────
 
-        self.log_queue = queue.Queue()
-        self.server = WebServer(self.log_queue)
+if USE_RUMPS:
 
-        self._build_ui()
-        self._poll_log()
+    class TrayApp(rumps.App):
+        def __init__(self):
+            super().__init__(
+                "Rayonics",
+                icon=None,
+                quit_button=None,
+                template=True,
+            )
+            self.menu = [
+                rumps.MenuItem("Open Browser", callback=self.open_browser),
+                None,  # separator
+                rumps.MenuItem("Server: Starting...", callback=None),
+                None,
+                rumps.MenuItem("Quit", callback=self.quit_app),
+            ]
+            self._status_item = self.menu["Server: Starting..."]
+            self._status_item.set_callback(None)
 
-        # Auto-start server
-        self.start_server()
+            # Save icon to temp file for rumps
+            icon_path = Path("/tmp/rayonics_icon.png")
+            make_icon("#3ecf8e", 44).save(icon_path)
+            self.icon = str(icon_path)
 
-    def _build_ui(self):
-        # ── Top bar ──
-        top = tk.Frame(self.root, bg=self.SURFACE, padx=16, pady=10)
-        top.pack(fill=tk.X)
+            # Start server
+            server.start()
 
-        tk.Label(
-            top, text="🔑 Rayonics Key Reader", font=(self.FONT_UI[0], 15, "bold"),
-            bg=self.SURFACE, fg=self.TEXT
-        ).pack(side=tk.LEFT)
+            # Poll status
+            self._timer = rumps.Timer(self._check_status, 1)
+            self._timer.start()
 
-        self.status_dot = tk.Label(top, text="●", font=(self.FONT_UI[0], 14),
-                                   bg=self.SURFACE, fg=self.RED)
-        self.status_dot.pack(side=tk.RIGHT, padx=(8, 0))
+        def _check_status(self, _):
+            if server.running:
+                self._status_item.title = f"Server: Running (:{PORT})"
+            else:
+                self._status_item.title = "Server: Stopped"
 
-        self.status_label = tk.Label(top, text="Stopped", font=self.FONT_UI,
-                                     bg=self.SURFACE, fg=self.DIM)
-        self.status_label.pack(side=tk.RIGHT)
+        def open_browser(self, _):
+            if server.running:
+                webbrowser.open(f"http://{HOST}:{PORT}")
 
-        # ── Separator ──
-        tk.Frame(self.root, bg=self.BORDER, height=1).pack(fill=tk.X)
+        def quit_app(self, _):
+            server.stop()
+            rumps.quit_application()
 
-        # ── Button bar ──
-        bar = tk.Frame(self.root, bg=self.BG, padx=16, pady=10)
-        bar.pack(fill=tk.X)
+    def main():
+        # Auto-open browser after server starts
+        def delayed_open():
+            import time
+            time.sleep(2)
+            if server.running:
+                webbrowser.open(f"http://{HOST}:{PORT}")
 
-        self.btn_toggle = tk.Button(
-            bar, text="⏹ Stop Server", font=self.FONT_UI,
-            bg=self.ACCENT, fg="white", activebackground="#4a7cde",
-            relief=tk.FLAT, padx=16, pady=4, cursor="hand2",
-            command=self.toggle_server
-        )
-        self.btn_toggle.pack(side=tk.LEFT)
+        threading.Thread(target=delayed_open, daemon=True).start()
+        TrayApp().run()
 
-        self.btn_browser = tk.Button(
-            bar, text="🌐 Open Browser", font=self.FONT_UI,
-            bg=self.SURFACE, fg=self.TEXT, activebackground=self.BORDER,
-            relief=tk.FLAT, padx=16, pady=4, cursor="hand2",
-            command=self.open_browser
-        )
-        self.btn_browser.pack(side=tk.LEFT, padx=(8, 0))
 
-        self.btn_clear = tk.Button(
-            bar, text="Clear Log", font=self.FONT_UI,
-            bg=self.SURFACE, fg=self.DIM, activebackground=self.BORDER,
-            relief=tk.FLAT, padx=12, pady=4, cursor="hand2",
-            command=self.clear_log
-        )
-        self.btn_clear.pack(side=tk.RIGHT)
+# ── Cross-platform system tray (pystray) ─────────────────────────────────
 
-        # ── Log area ──
-        log_frame = tk.Frame(self.root, bg=self.BG, padx=16, pady=(0, 16))
-        log_frame.pack(fill=tk.BOTH, expand=True)
+else:
 
-        self.log_area = scrolledtext.ScrolledText(
-            log_frame, font=self.FONT, bg="#0a0a0f", fg=self.DIM,
-            insertbackground=self.TEXT, relief=tk.FLAT, padx=10, pady=8,
-            state=tk.DISABLED, wrap=tk.WORD, borderwidth=0,
-            highlightthickness=1, highlightbackground=self.BORDER,
-            highlightcolor=self.ACCENT
-        )
-        self.log_area.pack(fill=tk.BOTH, expand=True)
-
-        # Tag colours for log levels
-        self.log_area.tag_configure("info", foreground=self.DIM)
-        self.log_area.tag_configure("success", foreground=self.GREEN)
-        self.log_area.tag_configure("error", foreground=self.RED)
-        self.log_area.tag_configure("warn", foreground=self.WARN)
-        self.log_area.tag_configure("time", foreground="#555566")
-
-    def _poll_log(self):
-        """Pull messages from the queue into the text widget."""
-        while True:
-            try:
-                ts, msg, level = self.log_queue.get_nowait()
-            except queue.Empty:
-                break
-            self.log_area.configure(state=tk.NORMAL)
-            self.log_area.insert(tk.END, f"{ts} ", "time")
-            self.log_area.insert(tk.END, f"{msg}\n", level)
-            self.log_area.configure(state=tk.DISABLED)
-            self.log_area.see(tk.END)
-
-        # Update status indicator
-        if self.server.running:
-            self.status_dot.configure(fg=self.GREEN)
-            self.status_label.configure(text=f"Running — localhost:{PORT}")
-            self.btn_toggle.configure(text="⏹ Stop Server", bg=self.RED)
-        else:
-            self.status_dot.configure(fg=self.RED)
-            self.status_label.configure(text="Stopped")
-            self.btn_toggle.configure(text="▶ Start Server", bg=self.GREEN)
-
-        self.root.after(100, self._poll_log)
-
-    def start_server(self):
-        ts = datetime.now().strftime("%H:%M:%S")
-        self.log_queue.put((ts, "Starting server...", "info"))
-        self.server.start()
-        # Auto-open browser after a short delay
-        self.root.after(1500, self.open_browser)
-
-    def stop_server(self):
-        self.server.stop()
-
-    def toggle_server(self):
-        if self.server.running:
-            self.stop_server()
-        else:
-            self.start_server()
-
-    def open_browser(self):
-        if self.server.running:
+    def on_open(icon, item):
+        if server.running:
             webbrowser.open(f"http://{HOST}:{PORT}")
 
-    def clear_log(self):
-        self.log_area.configure(state=tk.NORMAL)
-        self.log_area.delete("1.0", tk.END)
-        self.log_area.configure(state=tk.DISABLED)
+    def on_quit(icon, item):
+        server.stop()
+        icon.stop()
 
-    def run(self):
-        self.root.mainloop()
+    def get_status_text():
+        return f"Server: Running (:{PORT})" if server.running else "Server: Stopped"
+
+    def main():
+        server.start()
+
+        icon = pystray.Icon(
+            "rayonics",
+            make_icon("#3ecf8e"),
+            "Rayonics Key Reader",
+            menu=pystray.Menu(
+                pystray.MenuItem("Open Browser", on_open, default=True),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(get_status_text, None, enabled=False),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Quit", on_quit),
+            ),
+        )
+
+        # Auto-open browser
+        def delayed_open():
+            import time
+            time.sleep(2)
+            if server.running:
+                webbrowser.open(f"http://{HOST}:{PORT}")
+
+        threading.Thread(target=delayed_open, daemon=True).start()
+        icon.run()
 
 
 if __name__ == "__main__":
-    App().run()
+    main()
