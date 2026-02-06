@@ -140,7 +140,7 @@ class WebServer:
         finally:
             try:
                 await self._runner.cleanup()
-            except Exception:
+            except BaseException:
                 pass
             self.running = False
 
