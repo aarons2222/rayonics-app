@@ -60,14 +60,22 @@ async def ws_handler(request):
 
 # ── Main ──────────────────────────────────────────────────────────────────
 
+async def index_handler(request):
+    """Serve index.html for /"""
+    return web.FileResponse(STATIC_DIR / "index.html")
+
+
 def create_app():
     app = web.Application()
 
     # WebSocket endpoint
     app.router.add_get("/ws", ws_handler)
 
-    # Static files (serves index.html for /)
-    app.router.add_static("/", STATIC_DIR, show_index=True)
+    # Serve index.html at /
+    app.router.add_get("/", index_handler)
+
+    # Static files (css/, js/)
+    app.router.add_static("/", STATIC_DIR)
 
     return app
 
