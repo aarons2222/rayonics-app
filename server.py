@@ -22,7 +22,13 @@ from ble_handler import BLEHandler
 
 HOST = "localhost"
 PORT = 8765
-STATIC_DIR = Path(__file__).parent / "static"
+
+# When running from PyInstaller bundle, files are in sys._MEIPASS
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    BASE_DIR = Path(__file__).parent
+STATIC_DIR = BASE_DIR / "static"
 
 
 # ── WebSocket handler ─────────────────────────────────────────────────────

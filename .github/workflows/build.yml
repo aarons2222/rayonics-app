@@ -7,19 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            name: macOS
-            artifact: RayonicsKeyReader-mac
-          - os: windows-latest
-            name: Windows
-            artifact: RayonicsKeyReader-win
-
-    runs-on: ${{ matrix.os }}
-    name: Build (${{ matrix.name }})
+  build-mac:
+    runs-on: macos-latest
+    name: Build (macOS)
 
     steps:
       - uses: actions/checkout@v4
@@ -31,29 +21,44 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Install platform deps (macOS)
-        if: runner.os == 'macOS'
-        run: pip install rumps
-
-      - name: Install platform deps (Windows)
-        if: runner.os == 'Windows'
-        run: pip install pystray
+          pip install rumps pyinstaller
 
       - name: Build
         run: python build.py
 
-      - name: Upload macOS app
-        if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: dist/RayonicsKeyReader.app
+      - name: Ad-hoc sign
+        run: codesign --force --deep --sign - dist/RayonicsKeyReader.app
 
-      - name: Upload Windows exe
-        if: runner.os == 'Windows'
+      - name: Zip app bundle
+        run: cd dist && zip -r RayonicsKeyReader-mac.zip RayonicsKeyReader.app
+
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
+          name: RayonicsKeyReader-mac
+          path: dist/RayonicsKeyReader-mac.zip
+
+  build-windows:
+    runs-on: windows-latest
+    name: Build (Windows)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pystray pyinstaller
+
+      - name: Build
+        run: python build.py
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: RayonicsKeyReader-win
           path: dist/RayonicsKeyReader.exe
