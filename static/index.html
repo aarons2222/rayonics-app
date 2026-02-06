@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rayonics Key Reader</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>🔑 Rayonics Key Reader</h1>
+    <div id="status-bar">
+      <span id="ws-indicator" class="indicator disconnected" title="WebSocket"></span>
+      <span id="ws-label">Server</span>
+      <span id="ble-indicator" class="indicator disconnected" title="BLE"></span>
+      <span id="ble-label">No device</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ── Left column: Scan + Devices ── -->
+    <section id="panel-scan" class="panel">
+      <h2>Devices</h2>
+      <button id="btn-scan" class="btn primary">🔍 Scan</button>
+      <div id="device-list" class="device-list"></div>
+    </section>
+
+    <!-- ── Centre: Key Info + Actions ── -->
+    <section id="panel-info" class="panel">
+      <h2>Key Info</h2>
+      <div id="key-info" class="info-grid">
+        <p class="placeholder">Connect to a device to see key info</p>
+      </div>
+
+      <div class="action-row">
+        <button id="btn-read-key" class="btn" disabled>📋 Read Key</button>
+        <button id="btn-read-events" class="btn" disabled>📖 Read Events</button>
+        <label class="checkbox-label">
+          <input type="checkbox" id="chk-clear-events"> Clear after read
+        </label>
+        <button id="btn-disconnect" class="btn danger" disabled>⏏ Disconnect</button>
+      </div>
+
+      <h2>Events <span id="event-count" class="badge"></span></h2>
+      <div id="events-container" class="table-wrap">
+        <table id="events-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Timestamp</th>
+              <th>Lock ID</th>
+              <th>Key ID</th>
+              <th>Event</th>
+            </tr>
+          </thead>
+          <tbody id="events-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Right column: Log ── -->
+    <section id="panel-log" class="panel">
+      <h2>
+        Log
+        <button id="btn-clear-log" class="btn small">Clear</button>
+      </h2>
+      <div id="log-area"></div>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

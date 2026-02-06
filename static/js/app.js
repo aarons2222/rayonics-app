@@ -1,0 +1,266 @@
+// ══════════════════════════════════════════════════════════════════════════
+// Rayonics Key Reader — WebSocket Client
+// ══════════════════════════════════════════════════════════════════════════
+
+(() => {
+  "use strict";
+
+  // ── Elements ───────────────────────────────────────────────────────────
+  const $  = (s) => document.querySelector(s);
+  const $$ = (s) => document.querySelectorAll(s);
+
+  const wsIndicator  = $("#ws-indicator");
+  const wsLabel      = $("#ws-label");
+  const bleIndicator = $("#ble-indicator");
+  const bleLabel     = $("#ble-label");
+
+  const btnScan       = $("#btn-scan");
+  const btnReadKey    = $("#btn-read-key");
+  const btnReadEvents = $("#btn-read-events");
+  const btnDisconnect = $("#btn-disconnect");
+  const btnClearLog   = $("#btn-clear-log");
+  const chkClear      = $("#chk-clear-events");
+
+  const deviceList     = $("#device-list");
+  const keyInfoDiv     = $("#key-info");
+  const eventsBody     = $("#events-body");
+  const eventCount     = $("#event-count");
+  const logArea        = $("#log-area");
+
+  // ── State ──────────────────────────────────────────────────────────────
+  let ws = null;
+  let connected = false;        // BLE connected
+  let busy = false;             // command in-flight guard
+
+  // ── WebSocket ──────────────────────────────────────────────────────────
+
+  function initWS() {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const url = `${proto}//${location.host}`;
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      setWS(true);
+      log("Connected to server", "success");
+    };
+
+    ws.onclose = () => {
+      setWS(false);
+      setBLE(false, "");
+      log("Server connection lost — retrying in 2 s…", "warn");
+      setTimeout(initWS, 2000);
+    };
+
+    ws.onerror = () => {
+      // onclose will fire after this
+    };
+
+    ws.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      handleMessage(msg);
+    };
+  }
+
+  function send(obj) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(obj));
+    }
+  }
+
+  // ── Incoming message router ────────────────────────────────────────────
+
+  function handleMessage(msg) {
+    switch (msg.type) {
+      case "devices":   onDevices(msg.devices); break;
+      case "key_info":  onKeyInfo(msg.data);    break;
+      case "events":    onEvents(msg.data);     break;
+      case "status":    onStatus(msg);          break;
+      case "log":       onLog(msg);             break;
+      case "error":     onError(msg);           break;
+      default:
+        log(`Unknown message type: ${msg.type}`, "warn");
+    }
+  }
+
+  // ── Handlers ───────────────────────────────────────────────────────────
+
+  function onDevices(devices) {
+    busy = false;
+    btnScan.disabled = false;
+    btnScan.textContent = "🔍 Scan";
+    deviceList.innerHTML = "";
+
+    if (devices.length === 0) {
+      deviceList.innerHTML = '<p class="placeholder" style="color:var(--text-dim);font-size:.85rem">No devices found</p>';
+      return;
+    }
+
+    devices
+      .sort((a, b) => (b.rssi || -100) - (a.rssi || -100))
+      .forEach((d) => {
+        const el = document.createElement("div");
+        el.className = "device-item";
+        el.innerHTML = `
+          <span class="name">${esc(d.name || "Unknown")}</span>
+          <span class="addr">${esc(d.address)}</span>
+          <span class="rssi">RSSI ${d.rssi} dBm</span>
+        `;
+        el.addEventListener("click", () => {
+          if (busy) return;
+          busy = true;
+          send({ action: "connect", address: d.address });
+          bleIndicator.className = "indicator connecting";
+          bleLabel.textContent = `Connecting to ${d.name || d.address}…`;
+        });
+        deviceList.appendChild(el);
+      });
+  }
+
+  function onKeyInfo(data) {
+    busy = false;
+    keyInfoDiv.innerHTML = "";
+
+    const fields = [
+      ["Key ID",      data.keyId],
+      ["Key Type",    `${data.keyTypeName} (0x${(data.keyType || 0).toString(16).toUpperCase().padStart(2, "0")})`],
+      ["Group ID",    data.groupId],
+      ["Verify Day",  data.verifyDay],
+      ["Battery",     batteryHTML(data.power)],
+      ["BLE Online",  data.isBleOnline ? "Yes" : "No"],
+      ["Version",     `<span class="value version">${esc(data.version || "—")}</span>`],
+    ];
+
+    fields.forEach(([label, value]) => {
+      const item = document.createElement("div");
+      item.className = "info-item";
+      item.innerHTML = `<span class="label">${label}</span><span class="value">${value}</span>`;
+      keyInfoDiv.appendChild(item);
+    });
+  }
+
+  function onEvents(events) {
+    busy = false;
+    eventsBody.innerHTML = "";
+    eventCount.textContent = events.length;
+
+    events.forEach((ev, i) => {
+      const tr = document.createElement("tr");
+      if (ev.error) {
+        tr.innerHTML = `<td>${i + 1}</td><td colspan="4" style="color:var(--danger)">${esc(ev.error)}</td>`;
+      } else {
+        tr.innerHTML = `
+          <td>${i + 1}</td>
+          <td>${esc(ev.time || "—")}</td>
+          <td>${ev.lockId ?? "—"}</td>
+          <td>${ev.keyId ?? "—"}</td>
+          <td>${esc(ev.eventName || String(ev.event))}</td>
+        `;
+      }
+      eventsBody.appendChild(tr);
+    });
+  }
+
+  function onStatus(msg) {
+    connected = msg.connected;
+    setBLE(msg.connected, msg.device || "");
+
+    btnReadKey.disabled    = !msg.connected;
+    btnReadEvents.disabled = !msg.connected;
+    btnDisconnect.disabled = !msg.connected;
+
+    if (!msg.connected) {
+      // Reset UI on disconnect
+      keyInfoDiv.innerHTML = '<p class="placeholder">Connect to a device to see key info</p>';
+      eventsBody.innerHTML = "";
+      eventCount.textContent = "";
+    }
+    busy = false;
+  }
+
+  function onLog(msg) {
+    log(msg.message, msg.level || "info");
+  }
+
+  function onError(msg) {
+    busy = false;
+    btnScan.disabled = false;
+    log(msg.message, "error");
+  }
+
+  // ── UI helpers ─────────────────────────────────────────────────────────
+
+  function setWS(on) {
+    wsIndicator.className = `indicator ${on ? "connected" : "disconnected"}`;
+    wsLabel.textContent = on ? "Server ✓" : "Server ✗";
+  }
+
+  function setBLE(on, name) {
+    bleIndicator.className = `indicator ${on ? "connected" : "disconnected"}`;
+    bleLabel.textContent = on ? `🔑 ${name}` : "No device";
+  }
+
+  function log(message, level = "info") {
+    const line = document.createElement("div");
+    line.className = `log-line ${level}`;
+
+    const now = new Date();
+    const ts  = now.toLocaleTimeString("en-GB", { hour12: false });
+    line.innerHTML = `<span class="log-time">${ts}</span>${esc(message)}`;
+
+    logArea.appendChild(line);
+    logArea.scrollTop = logArea.scrollHeight;
+  }
+
+  function batteryHTML(pct) {
+    if (pct == null || pct === "?") return "—";
+    const n = typeof pct === "string" ? parseInt(pct) : pct;
+    const cls = n > 50 ? "high" : n > 20 ? "medium" : "low";
+    return `
+      <span class="battery-bar">
+        <span class="bar"><span class="fill ${cls}" style="width:${n}%"></span></span>
+        ${n}%
+      </span>
+    `;
+  }
+
+  function esc(s) {
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ── Button handlers ────────────────────────────────────────────────────
+
+  btnScan.addEventListener("click", () => {
+    if (busy) return;
+    busy = true;
+    btnScan.disabled = true;
+    btnScan.textContent = "Scanning…";
+    deviceList.innerHTML = "";
+    send({ action: "scan" });
+  });
+
+  btnReadKey.addEventListener("click", () => {
+    if (busy) return;
+    busy = true;
+    send({ action: "read_key" });
+  });
+
+  btnReadEvents.addEventListener("click", () => {
+    if (busy) return;
+    busy = true;
+    send({ action: "read_events", clear: chkClear.checked });
+  });
+
+  btnDisconnect.addEventListener("click", () => {
+    send({ action: "disconnect" });
+  });
+
+  btnClearLog.addEventListener("click", () => {
+    logArea.innerHTML = "";
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────────────
+  initWS();
+})();

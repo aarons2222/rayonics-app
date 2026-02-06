@@ -1,0 +1,391 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Rayonics Key Reader — Dark Theme
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg:       #0f1117;
+  --surface:  #1a1d27;
+  --border:   #2a2d3a;
+  --text:     #e0e0e8;
+  --text-dim: #8888a0;
+  --accent:   #5b8def;
+  --accent2:  #3ecf8e;
+  --danger:   #ef5b5b;
+  --warn:     #f0b840;
+  --radius:   8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+#status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  transition: background 0.3s;
+}
+
+.indicator.connected    { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+.indicator.disconnected { background: #555; }
+.indicator.connecting   { background: var(--warn); animation: pulse 1s infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+
+main {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  gap: 16px;
+  padding: 16px 24px;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+  main {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: auto;
+  }
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  user-select: none;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--border);
+  border-color: var(--text-dim);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  width: 100%;
+  justify-content: center;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #4a7cde;
+}
+
+.btn.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: rgba(239, 91, 91, 0.15);
+}
+
+.btn.small {
+  padding: 3px 10px;
+  font-size: 0.78rem;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+/* ── Device List ────────────────────────────────────────────────────────── */
+
+.device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.device-item {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.device-item:hover {
+  background: var(--border);
+  border-color: var(--accent);
+}
+
+.device-item .name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.device-item .addr {
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.device-item .rssi {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ── Key Info Grid ──────────────────────────────────────────────────────── */
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+
+.info-grid .placeholder {
+  grid-column: 1 / -1;
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  font-style: italic;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-item .label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.info-item .value {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.info-item .value.version {
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.88rem;
+}
+
+/* ── Events Table ───────────────────────────────────────────────────────── */
+
+.badge {
+  font-size: 0.75rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 12px;
+  padding: 1px 8px;
+  font-weight: 600;
+}
+
+.table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+#events-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+#events-table th,
+#events-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+#events-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+#events-table td {
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.82rem;
+}
+
+#events-table tbody tr:hover {
+  background: rgba(91, 141, 239, 0.08);
+}
+
+/* ── Log ────────────────────────────────────────────────────────────────── */
+
+#panel-log h2 {
+  justify-content: space-between;
+}
+
+#log-area {
+  flex: 1;
+  overflow-y: auto;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius);
+}
+
+.log-line {
+  padding: 1px 0;
+  word-break: break-all;
+}
+
+.log-line.info  { color: var(--text-dim); }
+.log-line.warn  { color: var(--warn); }
+.log-line.error { color: var(--danger); }
+.log-line.success { color: var(--accent2); }
+
+.log-time {
+  color: #555;
+  margin-right: 6px;
+}
+
+/* ── Battery indicator ──────────────────────────────────────────────────── */
+
+.battery-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.battery-bar .bar {
+  width: 40px;
+  height: 12px;
+  border: 1px solid var(--text-dim);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.battery-bar .bar::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  top: 3px;
+  width: 3px;
+  height: 6px;
+  background: var(--text-dim);
+  border-radius: 0 2px 2px 0;
+}
+
+.battery-bar .fill {
+  height: 100%;
+  transition: width 0.3s;
+}
+
+.battery-bar .fill.high   { background: var(--accent2); }
+.battery-bar .fill.medium { background: var(--warn); }
+.battery-bar .fill.low    { background: var(--danger); }
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ── Scanning animation ────────────────────────────────────────────────── */
+
+.scanning .btn.primary {
+  animation: pulse 1s infinite;
+}
