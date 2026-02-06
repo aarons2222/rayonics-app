@@ -41,6 +41,6 @@ print()
 
 subprocess.run(cmd, cwd=ROOT, check=True)
 
-print(f"\n✅ Built: dist/{name}")
+print(f"\nBuilt: dist/{name}")
 if sys.platform == "darwin" and not cli_mode:
-    print(f"   App bundle: dist/{name}.app")
+    print(f"  App bundle: dist/{name}.app")
