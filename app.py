@@ -23,6 +23,9 @@ if sys.platform == "darwin":
     try:
         import rumps
         USE_RUMPS = True
+        # Hide dock icon — make this a menu bar-only app
+        from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+        NSApplication.sharedApplication().setActivationPolicy_(NSApplicationActivationPolicyAccessory)
     except ImportError:
         USE_RUMPS = False
 else:

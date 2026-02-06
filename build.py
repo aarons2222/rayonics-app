@@ -32,7 +32,10 @@ if not cli_mode:
     if sys.platform == "win32":
         cmd.append("--noconsole")
     elif sys.platform == "darwin":
-        cmd.extend(["--windowed"])
+        cmd.extend([
+            "--windowed",
+            "--osx-bundle-identifier", "com.rayonics.keyreader",
+        ])
 
 print(f"Building {'GUI' if not cli_mode else 'CLI'} version...")
 print(f"Entry: {entry}")
@@ -43,4 +46,14 @@ subprocess.run(cmd, cwd=ROOT, check=True)
 
 print(f"\nBuilt: dist/{name}")
 if sys.platform == "darwin" and not cli_mode:
+    # Inject LSUIElement to hide dock icon
+    import plistlib
+    plist_path = ROOT / "dist" / f"{name}.app" / "Contents" / "Info.plist"
+    if plist_path.exists():
+        with open(plist_path, "rb") as f:
+            plist = plistlib.load(f)
+        plist["LSUIElement"] = True
+        with open(plist_path, "wb") as f:
+            plistlib.dump(plist, f)
+        print("  LSUIElement set (no dock icon)")
     print(f"  App bundle: dist/{name}.app")
