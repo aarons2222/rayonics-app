@@ -138,7 +138,10 @@ class WebServer:
         except asyncio.CancelledError:
             pass
         finally:
-            await self._runner.cleanup()
+            try:
+                await self._runner.cleanup()
+            except Exception:
+                pass
             self.running = False
 
     def start(self):
