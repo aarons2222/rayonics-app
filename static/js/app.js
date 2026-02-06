@@ -70,7 +70,7 @@
       ws = null;
     }
 
-    const url = `ws://${host}`;
+    const url = `ws://${host}/ws`;
     log(`Connecting to ${url}…`, "info");
     wsIndicator.className = "indicator connecting";
     wsLabel.textContent = "Connecting…";
