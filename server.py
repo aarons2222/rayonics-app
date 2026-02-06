@@ -111,12 +111,14 @@ async def main():
     print()
 
     # Start the combined HTTP + WS server
+    # origins=None allows cross-origin WS (needed when UI is hosted on Vercel)
     async with websockets.serve(
         ws_handler,
         HOST,
         PORT,
         process_request=http_handler,
         max_size=2**20,
+        origins=None,
     ) as server:
         if not no_open:
             webbrowser.open(f"http://{HOST}:{PORT}")

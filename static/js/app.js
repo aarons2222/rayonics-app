@@ -1,5 +1,6 @@
 // ══════════════════════════════════════════════════════════════════════════
 // Rayonics Key Reader — WebSocket Client
+// Connects to a local Python server that handles BLE + crypto
 // ══════════════════════════════════════════════════════════════════════════
 
 (() => {
@@ -14,45 +15,109 @@
   const bleIndicator = $("#ble-indicator");
   const bleLabel     = $("#ble-label");
 
-  const btnScan       = $("#btn-scan");
-  const btnReadKey    = $("#btn-read-key");
-  const btnReadEvents = $("#btn-read-events");
-  const btnDisconnect = $("#btn-disconnect");
-  const btnClearLog   = $("#btn-clear-log");
-  const chkClear      = $("#chk-clear-events");
+  const btnConnectServer = $("#btn-connect-server");
+  const btnScan          = $("#btn-scan");
+  const btnReadKey       = $("#btn-read-key");
+  const btnReadEvents    = $("#btn-read-events");
+  const btnDisconnect    = $("#btn-disconnect");
+  const btnClearLog      = $("#btn-clear-log");
+  const chkClear         = $("#chk-clear-events");
 
-  const deviceList     = $("#device-list");
-  const keyInfoDiv     = $("#key-info");
-  const eventsBody     = $("#events-body");
-  const eventCount     = $("#event-count");
-  const logArea        = $("#log-area");
+  const inServer   = $("#in-server");
+  const inSyscode  = $("#in-syscode");
+  const inRegcode  = $("#in-regcode");
+
+  const deviceList = $("#device-list");
+  const keyInfoDiv = $("#key-info");
+  const eventsBody = $("#events-body");
+  const eventCount = $("#event-count");
+  const logArea    = $("#log-area");
 
   // ── State ──────────────────────────────────────────────────────────────
   let ws = null;
-  let connected = false;        // BLE connected
-  let busy = false;             // command in-flight guard
+  let connected = false;   // BLE connected
+  let wsConnected = false; // WS connected
+  let busy = false;
+  let autoReconnect = false;
+
+  // ── URL param overrides ────────────────────────────────────────────────
+  const params = new URLSearchParams(location.search);
+  if (params.has("server"))  inServer.value  = params.get("server");
+  if (params.has("syscode")) inSyscode.value = params.get("syscode");
+  if (params.has("regcode")) inRegcode.value = params.get("regcode");
+
+  // Auto-connect when served by the local Python server (same origin)
+  if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+    inServer.value = location.host;
+    setTimeout(connectServer, 300);
+  }
 
   // ── WebSocket ──────────────────────────────────────────────────────────
 
-  function initWS() {
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${proto}//${location.host}`;
+  function connectServer() {
+    const host = inServer.value.trim();
+    if (!host) { log("Enter a server address", "error"); return; }
+
+    // Validate codes
+    const sys = inSyscode.value.trim();
+    const reg = inRegcode.value.trim();
+    if (!/^[0-9a-fA-F]{8}$/.test(sys)) { log("Syscode must be 8 hex chars", "error"); return; }
+    if (!/^[0-9a-fA-F]{8}$/.test(reg)) { log("Regcode must be 8 hex chars", "error"); return; }
+
+    if (ws) {
+      autoReconnect = false;
+      ws.close();
+      ws = null;
+    }
+
+    const url = `ws://${host}`;
+    log(`Connecting to ${url}…`, "info");
+    wsIndicator.className = "indicator connecting";
+    wsLabel.textContent = "Connecting…";
+    btnConnectServer.disabled = true;
+
     ws = new WebSocket(url);
 
     ws.onopen = () => {
+      wsConnected = true;
+      autoReconnect = true;
       setWS(true);
-      log("Connected to server", "success");
+      btnScan.disabled = false;
+      btnConnectServer.textContent = "⚡ Reconnect";
+      btnConnectServer.disabled = false;
+      log("Connected to server ✓", "success");
+
+      // Send config (syscode/regcode) to server
+      send({ action: "set_codes", syscode: sys, regcode: reg });
     };
 
     ws.onclose = () => {
+      const wasConnected = wsConnected;
+      wsConnected = false;
       setWS(false);
       setBLE(false, "");
-      log("Server connection lost — retrying in 2 s…", "warn");
-      setTimeout(initWS, 2000);
+      btnScan.disabled = true;
+      btnReadKey.disabled = true;
+      btnReadEvents.disabled = true;
+      btnDisconnect.disabled = true;
+      btnConnectServer.disabled = false;
+
+      if (wasConnected) {
+        log("Server connection lost", "warn");
+        if (autoReconnect) {
+          log("Reconnecting in 3s…", "info");
+          setTimeout(connectServer, 3000);
+        }
+      }
     };
 
     ws.onerror = () => {
-      // onclose will fire after this
+      btnConnectServer.disabled = false;
+      if (!wsConnected) {
+        log("Could not connect — is the server running?", "error");
+        wsIndicator.className = "indicator disconnected";
+        wsLabel.textContent = "Server ✗";
+      }
     };
 
     ws.onmessage = (ev) => {
@@ -79,7 +144,7 @@
       case "log":       onLog(msg);             break;
       case "error":     onError(msg);           break;
       default:
-        log(`Unknown message type: ${msg.type}`, "warn");
+        log(`Unknown: ${msg.type}`, "warn");
     }
   }
 
@@ -170,7 +235,6 @@
     btnDisconnect.disabled = !msg.connected;
 
     if (!msg.connected) {
-      // Reset UI on disconnect
       keyInfoDiv.innerHTML = '<p class="placeholder">Connect to a device to see key info</p>';
       eventsBody.innerHTML = "";
       eventCount.textContent = "";
@@ -184,7 +248,7 @@
 
   function onError(msg) {
     busy = false;
-    btnScan.disabled = false;
+    btnScan.disabled = !wsConnected;
     log(msg.message, "error");
   }
 
@@ -232,6 +296,10 @@
 
   // ── Button handlers ────────────────────────────────────────────────────
 
+  btnConnectServer.addEventListener("click", () => {
+    connectServer();
+  });
+
   btnScan.addEventListener("click", () => {
     if (busy) return;
     busy = true;
@@ -261,6 +329,9 @@
     logArea.innerHTML = "";
   });
 
-  // ── Boot ───────────────────────────────────────────────────────────────
-  initWS();
+  // Allow Enter in server input to connect
+  inServer.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") connectServer();
+  });
+
 })();

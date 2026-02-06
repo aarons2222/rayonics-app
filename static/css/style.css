@@ -72,7 +72,7 @@ header h1 {
 
 main {
   display: grid;
-  grid-template-columns: 280px 1fr 320px;
+  grid-template-columns: 300px 1fr 320px;
   gap: 16px;
   padding: 16px 24px;
   height: calc(100vh - 56px);
@@ -107,6 +107,55 @@ main {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* ── Config inputs ──────────────────────────────────────────────────────── */
+
+.config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.config-row {
+  display: flex;
+  gap: 8px;
+}
+
+.config-row > * {
+  flex: 1;
+}
+
+.config-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config-input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  color: var(--text);
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.85rem;
+}
+
+.config-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.config-input.wide {
+  width: 100%;
 }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
@@ -330,9 +379,9 @@ main {
   word-break: break-all;
 }
 
-.log-line.info  { color: var(--text-dim); }
-.log-line.warn  { color: var(--warn); }
-.log-line.error { color: var(--danger); }
+.log-line.info    { color: var(--text-dim); }
+.log-line.warn    { color: var(--warn); }
+.log-line.error   { color: var(--danger); }
 .log-line.success { color: var(--accent2); }
 
 .log-time {
@@ -383,9 +432,3 @@ main {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
-
-/* ── Scanning animation ────────────────────────────────────────────────── */
-
-.scanning .btn.primary {
-  animation: pulse 1s infinite;
-}

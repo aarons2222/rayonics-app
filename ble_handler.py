@@ -23,9 +23,9 @@ from rayonics_ble.crypto import (
     aes_decrypt, build_packet, crc16, derive_session_key_v2, parse_packet,
 )
 
-# ── Auth codes (server-side only — never sent to the browser) ─────────────
-SYSCODE = bytes([0x11, 0x11, 0x1B, 0xFB])
-REGCODE = bytes([0x11, 0x11, 0x1B, 0xFB])
+# ── Auth codes (default — can be overridden per-session via set_codes) ────
+DEFAULT_SYSCODE = bytes([0x11, 0x11, 0x1B, 0xFB])
+DEFAULT_REGCODE = bytes([0x11, 0x11, 0x1B, 0xFB])
 
 # Map event type ints to human-readable names
 EVENT_TYPE_NAMES = {
@@ -88,6 +88,9 @@ class BLEHandler:
         self._response_event = asyncio.Event()
         # Keep scanned devices so we can look up by address
         self._scanned: dict[str, BLEDevice] = {}
+        # Auth codes (can be overridden per-session)
+        self._syscode = DEFAULT_SYSCODE
+        self._regcode = DEFAULT_REGCODE
 
     # ── helpers ────────────────────────────────────────────────────────────
 
@@ -140,7 +143,9 @@ class BLEHandler:
         """Route an incoming WS message to the right handler."""
         action = msg.get("action")
         try:
-            if action == "scan":
+            if action == "set_codes":
+                await self.set_codes(msg.get("syscode", ""), msg.get("regcode", ""))
+            elif action == "scan":
                 await self.scan()
             elif action == "connect":
                 await self.connect(msg["address"])
@@ -157,6 +162,21 @@ class BLEHandler:
         except Exception as exc:
             await self._error(f"{type(exc).__name__}: {exc}")
             traceback.print_exc()
+
+    # ── set codes ─────────────────────────────────────────────────────────
+
+    async def set_codes(self, syscode_hex: str, regcode_hex: str):
+        """Update syscode/regcode from hex strings (e.g. '11111bfb')."""
+        try:
+            self._syscode = bytes.fromhex(syscode_hex)
+            self._regcode = bytes.fromhex(regcode_hex)
+            if len(self._syscode) != 4 or len(self._regcode) != 4:
+                raise ValueError("Must be 4 bytes each")
+            await self._log(f"Codes set: syscode={syscode_hex} regcode={regcode_hex}")
+        except (ValueError, Exception) as e:
+            self._syscode = DEFAULT_SYSCODE
+            self._regcode = DEFAULT_REGCODE
+            await self._error(f"Invalid codes ({e}) — using defaults")
 
     # ── scan ──────────────────────────────────────────────────────────────
 
@@ -240,7 +260,7 @@ class BLEHandler:
             return
 
         seed = decrypted[2:14]
-        self._session_key = derive_session_key_v2(nonce, suffix, seed, SYSCODE, REGCODE)
+        self._session_key = derive_session_key_v2(nonce, suffix, seed, self._syscode, self._regcode)
         await self._log("Session key derived ✓")
 
         await asyncio.sleep(0.3)
@@ -249,7 +269,7 @@ class BLEHandler:
         await self._log("Sending VERIFY (0x0F)…")
         self._response.clear()
         self._response_event.clear()
-        verify_payload = REGCODE + SYSCODE + bytes([0x04])
+        verify_payload = self._regcode + self._syscode + bytes([0x04])
         packet = build_packet(Command.VERIFY_CODE, verify_payload, key=self._session_key)
         await self._client.write_gatt_char(WRITE_CHAR, packet, response=False)
 

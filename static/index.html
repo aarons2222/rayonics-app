@@ -11,17 +11,34 @@
     <h1>🔑 Rayonics Key Reader</h1>
     <div id="status-bar">
       <span id="ws-indicator" class="indicator disconnected" title="WebSocket"></span>
-      <span id="ws-label">Server</span>
+      <span id="ws-label">Server ✗</span>
       <span id="ble-indicator" class="indicator disconnected" title="BLE"></span>
       <span id="ble-label">No device</span>
     </div>
   </header>
 
   <main>
-    <!-- ── Left column: Scan + Devices ── -->
+    <!-- ── Left column: Config + Scan + Devices ── -->
     <section id="panel-scan" class="panel">
+      <h2>Connection</h2>
+
+      <div class="config-group">
+        <label class="config-label">Server
+          <input type="text" id="in-server" class="config-input wide" value="localhost:8765" placeholder="host:port">
+        </label>
+        <div class="config-row">
+          <label class="config-label">Syscode
+            <input type="text" id="in-syscode" class="config-input" value="11111bfb" maxlength="8" placeholder="hex">
+          </label>
+          <label class="config-label">Regcode
+            <input type="text" id="in-regcode" class="config-input" value="11111bfb" maxlength="8" placeholder="hex">
+          </label>
+        </div>
+        <button id="btn-connect-server" class="btn primary">⚡ Connect to Server</button>
+      </div>
+
       <h2>Devices</h2>
-      <button id="btn-scan" class="btn primary">🔍 Scan</button>
+      <button id="btn-scan" class="btn primary" disabled>🔍 Scan</button>
       <div id="device-list" class="device-list"></div>
     </section>
 
