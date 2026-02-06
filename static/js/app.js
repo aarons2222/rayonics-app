@@ -37,6 +37,8 @@
   let wsConnected = false; // WS connected
   let busy = false;
   let autoReconnect = false;
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT = 3;
 
   // ── URL param overrides ────────────────────────────────────────────────
   const params = new URLSearchParams(location.search);
@@ -79,11 +81,12 @@
     ws.onopen = () => {
       wsConnected = true;
       autoReconnect = true;
+      reconnectAttempts = 0;
       setWS(true);
       btnScan.disabled = false;
       btnConnectServer.textContent = "⚡ Reconnect";
       btnConnectServer.disabled = false;
-      log("Connected to server ✓", "success");
+      log("Connected to server", "success");
 
       // Send config (syscode/regcode) to server
       send({ action: "set_codes", syscode: sys, regcode: reg });
@@ -95,16 +98,19 @@
       setWS(false);
       setBLE(false, "");
       btnScan.disabled = true;
-      btnReadKey.disabled = true;
-      btnReadEvents.disabled = true;
       btnDisconnect.disabled = true;
       btnConnectServer.disabled = false;
+      btnConnectServer.textContent = "⚡ Connect to Server";
 
       if (wasConnected) {
-        log("Server connection lost", "warn");
-        if (autoReconnect) {
-          log("Reconnecting in 3s…", "info");
+        log("Server disconnected", "warn");
+        if (autoReconnect && reconnectAttempts < MAX_RECONNECT) {
+          reconnectAttempts++;
+          log(`Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT}...`, "info");
           setTimeout(connectServer, 3000);
+        } else if (reconnectAttempts >= MAX_RECONNECT) {
+          log("Server stopped. Click Connect when ready.", "error");
+          autoReconnect = false;
         }
       }
     };
@@ -112,7 +118,6 @@
     ws.onerror = () => {
       btnConnectServer.disabled = false;
       if (!wsConnected) {
-        log("Could not connect — is the server running?", "error");
         wsIndicator.className = "indicator disconnected";
         wsLabel.textContent = "Server ✗";
       }
