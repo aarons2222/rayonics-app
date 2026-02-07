@@ -83,11 +83,20 @@ async def index_handler(request):
     return web.FileResponse(STATIC_DIR / "index.html")
 
 
+async def version_handler(request):
+    """Return app version."""
+    from rayonics_ble import __version__
+    return web.json_response({"version": __version__})
+
+
 def create_app():
     app = web.Application()
 
     # WebSocket endpoint
     app.router.add_get("/ws", ws_handler)
+
+    # Version endpoint
+    app.router.add_get("/api/version", version_handler)
 
     # Serve index.html at /
     app.router.add_get("/", index_handler)

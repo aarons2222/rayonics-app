@@ -52,6 +52,11 @@
   if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
     inServer.value = location.host;
     setTimeout(connectServer, 300);
+    // Fetch version
+    fetch("/api/version").then(r => r.json()).then(d => {
+      const el = document.getElementById("app-version");
+      if (el && d.version) el.textContent = `v${d.version}`;
+    }).catch(() => {});
   }
 
   // ── WebSocket ──────────────────────────────────────────────────────────

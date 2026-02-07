@@ -81,6 +81,6 @@ class Command:
     WRITE_TRACE = 0x1B         # Write trace info
     GET_EVENT_COUNT = 0x26     # Get event count
     GET_EVENT = 0x27           # Get event by position
-    CLEAN_EVENT = 0x28         # Clean all events
+    CLEAN_EVENT = 0x2B         # Clean all events (was incorrectly 0x28 which is setLockId)
     GET_KEY_VERSION = 0x34     # Get key version string (e.g. "B03009V301")
     SET_KEY_TIME = 0x60        # Set key time

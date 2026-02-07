@@ -52,7 +52,7 @@ from .crypto import (
     is_crypto_available,
 )
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     # Main SDK
     "RayonicsSDK",

@@ -64,6 +64,7 @@ class WebServer:
         self._task = None
         self.running = False
         self.ble_active = False  # True during BLE operations (scan/connect/read)
+        self._port_error = None  # Set if port is already in use
 
     async def _ws_handler(self, request):
         origin = request.headers.get("Origin", "")
@@ -110,9 +111,14 @@ class WebServer:
     async def _index_handler(self, request):
         return web.FileResponse(STATIC_DIR / "index.html")
 
+    async def _version_handler(self, request):
+        from rayonics_ble import __version__
+        return web.json_response({"version": __version__})
+
     def _create_app(self):
         app = web.Application()
         app.router.add_get("/ws", self._ws_handler)
+        app.router.add_get("/api/version", self._version_handler)
         app.router.add_get("/", self._index_handler)
         app.router.add_static("/", STATIC_DIR)
         return app
@@ -122,7 +128,13 @@ class WebServer:
         self._runner = web.AppRunner(app)
         await self._runner.setup()
         site = web.TCPSite(self._runner, HOST, PORT)
-        await site.start()
+        try:
+            await site.start()
+        except OSError as exc:
+            self._port_error = str(exc)
+            self.running = False
+            return
+        self._port_error = None
         self.running = True
 
         try:
@@ -173,7 +185,11 @@ def check_bluetooth_available() -> tuple[bool, str]:
     async def _check():
         try:
             from bleak import BleakScanner
-            await BleakScanner.discover(timeout=1.0, return_adv=True)
+            # Quick check — just see if scanner can start without error
+            scanner = BleakScanner()
+            await scanner.start()
+            await asyncio.sleep(0.1)
+            await scanner.stop()
             return True, "Bluetooth adapter found"
         except Exception as exc:
             err = str(exc).lower()
@@ -363,6 +379,14 @@ if USE_RUMPS:
             # Start server and open browser
             server.start()
             time.sleep(1.5)
+            if server._port_error:
+                rumps.alert(
+                    title="eLOQ Sync — Port In Use",
+                    message=f"Port {PORT} is already in use.\n\nAnother instance may be running, or another app is using this port.",
+                    ok="Quit",
+                )
+                rumps.quit_application()
+                return
             if server.running:
                 webbrowser.open(f"http://{HOST}:{PORT}")
 
@@ -403,6 +427,20 @@ else:
 
         from PIL import Image as PILImage
         server.start()
+
+        import time as _time
+        _time.sleep(1.5)
+        if server._port_error:
+            try:
+                import tkinter as tk
+                from tkinter import messagebox
+                root = tk.Tk()
+                root.withdraw()
+                messagebox.showerror("eLOQ Sync — Port In Use", f"Port {PORT} is already in use.\n\nAnother instance may be running.")
+                root.destroy()
+            except Exception:
+                print(f"ERROR: Port {PORT} in use")
+            return
 
         tray_icon = PILImage.open(ASSETS_DIR / "icon.png")
         icon = pystray.Icon(

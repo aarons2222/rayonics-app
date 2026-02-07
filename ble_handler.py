@@ -115,13 +115,15 @@ class BLEHandler:
 
     def _on_notify(self, _sender, data: bytearray):
         self._response.extend(data)
-        self._response_event.set()
+        # Only signal when we have a complete 19-byte response
+        if len(self._response) >= 19:
+            self._response_event.set()
 
     async def _send_cmd(self, cmd: int, payload: bytes = b"",
                         timeout: float = 3.0) -> Optional[bytes]:
         """Send an encrypted command and return the raw 16-byte decrypted response."""
         if not self._client or not self._client.is_connected:
-            raise RuntimeError("Not connected")
+            raise RuntimeError("Not connected — key may have disconnected")
 
         key = self._session_key  # None → system key inside build_packet
         packet = build_packet(cmd, payload, key=key)
@@ -129,9 +131,25 @@ class BLEHandler:
         self._response.clear()
         self._response_event.clear()
 
-        await self._client.write_gatt_char(WRITE_CHAR, packet, response=False)
+        try:
+            await self._client.write_gatt_char(WRITE_CHAR, packet, response=False)
+        except Exception as exc:
+            await self._log(f"BLE write failed: {exc}", "error")
+            await self.disconnect(silent=True)
+            await self._status()
+            raise RuntimeError(f"Key disconnected during write: {exc}")
 
-        await asyncio.wait_for(self._response_event.wait(), timeout=timeout)
+        try:
+            await asyncio.wait_for(self._response_event.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            # Check if key is still connected
+            if not self._client or not self._client.is_connected:
+                await self._log("Key disconnected", "error")
+                await self.disconnect(silent=True)
+                await self._status()
+                raise RuntimeError("Key disconnected")
+            return None
+
         resp = bytes(self._response)
         if len(resp) < 19:
             return None
@@ -291,9 +309,14 @@ class BLEHandler:
 
         await self._log(f"Connecting to {device.name or address}…")
         try:
-            self._client = BleakClient(device)
-            await self._client.connect()
+            self._client = BleakClient(device, timeout=10.0)
+            await asyncio.wait_for(self._client.connect(), timeout=15.0)
             self._device = device
+        except asyncio.TimeoutError:
+            self._client = None
+            self._device = None
+            await self._error("Connection timed out — is the key nearby?")
+            return
         except Exception as exc:
             self._client = None
             self._device = None

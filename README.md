@@ -6,14 +6,14 @@ Runs as a lightweight **menu bar** (macOS) or **system tray** (Windows) app — 
 
 ## Download
 
-**[Latest Release →](https://github.com/aarons2222/rayonics-app/releases/latest)**
+**[Latest Release →](https://github.com/aarons2222/eloq-sync/releases/latest)**
 
 | Platform | File | Notes |
 |----------|------|-------|
-| macOS | `RayonicsKeyReader-mac.zip` | Unzip → right-click → Open (first launch) |
-| Windows | `RayonicsKeyReader.exe` | Click "More info" → "Run anyway" |
+| macOS | `eLOQ-Sync-mac.zip` | Unzip → right-click → **Open** (first launch) |
+| Windows | `eLOQ Sync.exe` | Click "More info" → "Run anyway" |
 
-> Both are unsigned — macOS Gatekeeper and Windows SmartScreen will warn on first launch. This is normal for developer-distributed apps.
+> Both are ad-hoc signed but not notarised. macOS Gatekeeper and Windows SmartScreen will warn on first launch.
 
 ## How It Works
 
@@ -25,7 +25,7 @@ Runs as a lightweight **menu bar** (macOS) or **system tray** (Windows) app — 
 └──────────────┘                    └──────────────┘                 └──────────┘
 ```
 
-1. **Launch the app** — sits in your menu bar / system tray
+1. **Launch the app** — checks for Bluetooth, then sits in your menu bar / system tray
 2. **Browser opens** — web UI at `http://localhost:8765`
 3. **Scan** — discovers nearby Rayonics keys
 4. **Click a device** — connects, authenticates, and reads everything automatically
@@ -38,6 +38,9 @@ All data stays local. The browser and server are both on your machine — nothin
 - **Event log** — timestamps, lock IDs, event types (open, fail, expired, etc.)
 - **Clear events** — optionally wipe the event log after reading
 - **Configurable codes** — set syscode/regcode in the UI
+- **Bluetooth adapter check** — verifies adapter on launch, clear error if missing
+- **Menu bar icon flash** — visual feedback during BLE operations
+- **Move to Applications** — prompts to install on macOS
 - **Cross-platform** — macOS (menu bar) and Windows (system tray)
 - **Any browser** — works in Chrome, Edge, Firefox, Safari
 
@@ -47,13 +50,14 @@ All data stays local. The browser and server are both on your machine — nothin
 |---------|-----------|
 | BLE Key ↔ Server | AES-128-ECB encrypted |
 | Server ↔ Browser | localhost only (never leaves your machine) |
+| WebSocket | Origin-checked (only localhost + Vercel UI allowed) |
 | No cloud | All data is local. No accounts, no tracking. |
 
 ## Running from Source
 
 ```bash
-git clone https://github.com/aarons2222/rayonics-app.git
-cd rayonics-app
+git clone https://github.com/aarons2222/eloq-sync.git
+cd eloq-sync
 
 # Create virtual environment
 python3 -m venv venv
@@ -77,13 +81,13 @@ python build.py --cli    # CLI executable
 ```
 
 Output in `dist/`:
-- macOS: `RayonicsKeyReader.app`
-- Windows: `RayonicsKeyReader.exe`
+- macOS: `eLOQ Sync.app`
+- Windows: `eLOQ Sync.exe`
 
 ## Project Structure
 
 ```
-rayonics-app/
+eloq-sync/
 ├── app.py              # Menu bar / system tray launcher
 ├── server.py           # HTTP + WebSocket server (CLI mode)
 ├── ble_handler.py      # BLE protocol handler
@@ -101,8 +105,8 @@ rayonics-app/
 ## Protocol
 
 Supports B03009 encrypted keys:
-- **CONNECT** (0x0D) → nonce exchange
-- **VERIFY** (0x0F) → syscode/regcode auth
+- **CONNECT** (0x0D) → nonce exchange, session key derivation
+- **VERIFY** (0x0F) → syscode/regcode authentication
 - **GET_KEY_INFO** (0x11) → key ID, type, group, battery
 - **GET_KEY_VERSION** (0x34) → firmware version
 - **GET_EVENT_COUNT** (0x26) → event count

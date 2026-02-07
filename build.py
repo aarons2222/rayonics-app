@@ -14,6 +14,10 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 ASSETS = ROOT / "assets"
 
+# Read version from package
+sys.path.insert(0, str(ROOT))
+from rayonics_ble import __version__ as VERSION
+
 cli_mode = "--cli" in sys.argv
 entry = "server.py" if cli_mode else "app.py"
 name = "eLOQ Sync"
@@ -63,7 +67,7 @@ if sys.platform == "darwin" and not cli_mode:
             plist = plistlib.load(f)
         plist["LSUIElement"] = True
         plist["CFBundleDisplayName"] = "eLOQ Sync"
-        plist["CFBundleShortVersionString"] = "1.0.0"
+        plist["CFBundleShortVersionString"] = VERSION
         with open(plist_path, "wb") as f:
             plistlib.dump(plist, f)
         print("  Plist updated (LSUIElement, display name, version)")
