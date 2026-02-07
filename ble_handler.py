@@ -17,7 +17,7 @@ from bleak.backends.device import BLEDevice
 
 from rayonics_ble.constants import (
     SERVICE_UUID, WRITE_CHAR, NOTIFY_CHAR,
-    DEVICE_PREFIXES, Command,
+    DEVICE_PREFIXES, KNOWN_KEY_ADDRESSES, Command,
 )
 from rayonics_ble.crypto import (
     aes_decrypt, build_packet, crc16, derive_session_key_v2, parse_packet,
@@ -292,6 +292,9 @@ class BLEHandler:
             # Match by name prefix
             name_match = any(name.startswith(p) for p in DEVICE_PREFIXES)
 
+            # Match by known address
+            addr_match = dev.address.upper() in {a.upper() for a in KNOWN_KEY_ADDRESSES}
+
             # Fallback: match by service UUID
             service_match = False
             if adv.service_uuids:
@@ -299,7 +302,7 @@ class BLEHandler:
                     SERVICE_UUID.lower() in u.lower() for u in adv.service_uuids
                 )
 
-            if name_match or service_match:
+            if name_match or addr_match or service_match:
                 self._scanned[dev.address] = dev
                 found.append({
                     "name": name or f"Rayonics Key ({dev.address[-5:]})",

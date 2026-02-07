@@ -36,6 +36,11 @@ CHAR_MANUFACTURER = "00002a29-0000-1000-8000-00805f9b34fb"
 
 DEVICE_PREFIXES = ["B03005", "B03009", "B03018", "RayonicsKEY", "LSD4BT"]
 
+# Known Rayonics key addresses (for platforms that don't report device names)
+KNOWN_KEY_ADDRESSES = {
+    "900ABF33-59AA-BD63-AA85-3EF325201098",  # Aaron's B03009 key (Windows GUID)
+}
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENCRYPTION
