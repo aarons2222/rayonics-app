@@ -142,6 +142,28 @@
       try { msg = JSON.parse(ev.data); } catch { return; }
       handleMessage(msg);
     };
+
+    // Fallback: poll connection state every 3s
+    // Catches cases where onclose doesn't fire (browser quirks)
+    const pollId = setInterval(() => {
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        clearInterval(pollId);
+        if (wsConnected) {
+          wsConnected = false;
+          connected = false;
+          setWS(false);
+          setBLE(false, "");
+          btIndicator.className = "indicator disconnected";
+          btLabel.textContent = "Adapter ✗";
+          btnScan.disabled = true;
+          btnDisconnect.disabled = true;
+          btnConnectServer.disabled = false;
+          btnConnectServer.textContent = "⚡ Connect to Server";
+          log("Server connection lost", "warn");
+          autoReconnect = false;
+        }
+      }
+    }, 3000);
   }
 
   function send(obj) {

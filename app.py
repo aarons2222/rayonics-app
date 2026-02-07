@@ -65,15 +65,17 @@ class WebServer:
         self.running = False
         self.ble_active = False  # True during BLE operations (scan/connect/read)
         self._port_error = None  # Set if port is already in use
+        self._ws_clients: set = set()  # Track active WebSocket connections
 
     async def _ws_handler(self, request):
         origin = request.headers.get("Origin", "")
         if origin and origin not in ALLOWED_ORIGINS:
             return web.Response(status=403, text="Forbidden: origin not allowed")
 
-        ws = web.WebSocketResponse()
+        ws = web.WebSocketResponse(heartbeat=5.0)  # ping every 5s to detect dead connections
         await ws.prepare(request)
 
+        self._ws_clients.add(ws)
         srv = self  # reference for activity flag
 
         async def send_json(msg: dict):
@@ -104,6 +106,7 @@ class WebServer:
                     pass
         finally:
             srv.ble_active = False
+            self._ws_clients.discard(ws)
             await handler.disconnect(silent=True)
 
         return ws
@@ -143,6 +146,13 @@ class WebServer:
         except asyncio.CancelledError:
             pass
         finally:
+            # Close all WebSocket clients with a proper close frame
+            for ws in list(self._ws_clients):
+                try:
+                    await ws.close(code=1001, message=b"Server shutting down")
+                except Exception:
+                    pass
+            self._ws_clients.clear()
             try:
                 await self._runner.cleanup()
             except BaseException:

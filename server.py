@@ -47,7 +47,7 @@ async def ws_handler(request):
         print(f"[ws] Rejected connection from origin: {origin}")
         return web.Response(status=403, text="Forbidden: origin not allowed")
 
-    ws = web.WebSocketResponse()
+    ws = web.WebSocketResponse(heartbeat=5.0)
     await ws.prepare(request)
 
     print(f"[ws] Client connected from {request.remote}")
