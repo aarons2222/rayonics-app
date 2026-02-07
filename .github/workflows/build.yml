@@ -5,11 +5,6 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version label (e.g. 1.0.0)'
-        required: false
-        default: 'dev'
 
 permissions:
   contents: write
@@ -94,23 +89,29 @@ jobs:
   release:
     needs: [build-mac, build-windows]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    name: Create Release
+    name: Update Release
 
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Create Release
+      - name: Delete existing release
+        run: gh release delete latest --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          name: "eLOQ Sync ${{ github.ref_name }}"
+          tag_name: latest
+          name: "eLOQ Sync — Latest Build"
           body: |
-            ## eLOQ Sync ${{ github.ref_name }}
+            ## eLOQ Sync
 
             **Downloads:**
-            - **macOS**: `eLOQ-Sync-mac.zip` — Unzip, then double-click `install-mac.command` (first launch only)
+            - **macOS**: `eLOQ-Sync-mac.zip` — Unzip, double-click `install-mac.command` (first launch only)
             - **Windows**: `eLOQ Sync.exe` — Click "More info" → "Run anyway"
 
             **What it does:**
@@ -118,8 +119,12 @@ jobs:
             Opens a web UI in your browser to scan, read key info, and manage events.
 
             **Requirements:**
-            - Bluetooth adapter
+            - Bluetooth adapter (built-in or USB)
             - Any web browser
+
+            ---
+            *Built from `${{ github.sha }}` on ${{ github.event.head_commit.timestamp || 'manual trigger' }}*
           files: |
             artifacts/eLOQ-Sync-mac/eLOQ-Sync-mac.zip
             artifacts/eLOQ-Sync-win/eLOQ Sync.exe
+          make_latest: true
