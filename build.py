@@ -26,6 +26,7 @@ cmd = [
     "--onefile",
     "--name", name,
     f"--add-data=static{sep}static",
+    f"--add-data=assets{sep}assets",
     "--hidden-import", "bleak",
     "--hidden-import", "aiohttp",
     entry,

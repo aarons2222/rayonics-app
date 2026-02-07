@@ -14,7 +14,6 @@ import webbrowser
 from pathlib import Path
 
 from aiohttp import web
-from PIL import Image, ImageDraw
 
 from ble_handler import BLEHandler
 
@@ -43,40 +42,7 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
-
-
-# ── Icon generation ───────────────────────────────────────────────────────
-
-def make_icon(color="#3ecf8e", size=64):
-    """Generate a simple key icon."""
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-
-    # Draw a key shape
-    cx, cy = size // 2, size // 2
-    r = size // 4
-
-    # Key head (circle)
-    draw.ellipse(
-        [cx - r, cy - r - 4, cx + r, cy + r - 4],
-        outline=color, width=3
-    )
-    # Key shaft
-    draw.rectangle(
-        [cx - 3, cy + r - 6, cx + 3, cy + size // 2 + 4],
-        fill=color
-    )
-    # Key teeth
-    draw.rectangle(
-        [cx + 3, cy + size // 2 - 4, cx + 10, cy + size // 2 + 4],
-        fill=color
-    )
-    draw.rectangle(
-        [cx + 3, cy + size // 2 - 14, cx + 8, cy + size // 2 - 6],
-        fill=color
-    )
-
-    return img
+ASSETS_DIR = BASE_DIR / "assets"
 
 
 # ── Web Server ────────────────────────────────────────────────────────────
@@ -188,11 +154,8 @@ if USE_RUMPS:
                 template=True,
             )
 
-            # Save icons to temp files
-            self._icon_on = "/tmp/rayonics_icon_on.png"
-            self._icon_off = "/tmp/rayonics_icon_off.png"
-            make_icon("#3ecf8e", 44).save(self._icon_on)
-            make_icon("#555555", 44).save(self._icon_off)
+            # Use eLOQ menu bar icon
+            self._icon_file = str(ASSETS_DIR / "menubar.png")
 
             self.menu = [
                 rumps.MenuItem("🟢 Server Running", callback=None),
@@ -210,7 +173,7 @@ if USE_RUMPS:
             self._port_item.set_callback(None)
             self._toggle_item = self.menu["Stop Server"]
 
-            self.icon = self._icon_on
+            self.icon = self._icon_file
 
             # Start server
             server.start()
@@ -224,13 +187,11 @@ if USE_RUMPS:
                 self._status_item.title = "🟢 Server Running"
                 self._port_item.title = f"    http://localhost:{PORT}"
                 self._toggle_item.title = "⏹ Stop Server"
-                self.icon = self._icon_on
                 self.title = ""
             else:
                 self._status_item.title = "🔴 Server Stopped"
                 self._port_item.title = ""
                 self._toggle_item.title = "▶ Start Server"
-                self.icon = self._icon_off
                 self.title = ""
 
         def toggle_server(self, _):
@@ -282,12 +243,14 @@ else:
         return f"Server: Running (:{PORT})" if server.running else "Server: Stopped"
 
     def main():
+        from PIL import Image
         server.start()
 
+        tray_icon = Image.open(ASSETS_DIR / "icon.png")
         icon = pystray.Icon(
-            "rayonics",
-            make_icon("#3ecf8e"),
-            "Rayonics Key Reader",
+            "eloq",
+            tray_icon,
+            "eLOQ Key Reader",
             menu=pystray.Menu(
                 pystray.MenuItem("Open Browser", on_open, default=True),
                 pystray.Menu.SEPARATOR,
