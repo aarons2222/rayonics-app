@@ -53,7 +53,9 @@ jobs:
         run: codesign --force --deep --sign - "dist/eLOQ Sync.app"
 
       - name: Zip app bundle
-        run: cd dist && zip -r -y eLOQ-Sync-mac.zip "eLOQ Sync.app"
+        run: |
+          cp install-mac.command dist/
+          cd dist && zip -r -y eLOQ-Sync-mac.zip "eLOQ Sync.app" install-mac.command
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -108,7 +110,7 @@ jobs:
             ## eLOQ Sync ${{ github.ref_name }}
 
             **Downloads:**
-            - **macOS**: `eLOQ-Sync-mac.zip` — Unzip, then: `xattr -cr "eLOQ Sync.app"` → double-click
+            - **macOS**: `eLOQ-Sync-mac.zip` — Unzip, then double-click `install-mac.command` (first launch only)
             - **Windows**: `eLOQ Sync.exe` — Click "More info" → "Run anyway"
 
             **What it does:**

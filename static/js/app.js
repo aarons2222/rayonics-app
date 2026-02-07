@@ -92,9 +92,10 @@
       send({ action: "set_codes", syscode: sys, regcode: reg });
     };
 
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
       const wasConnected = wsConnected;
       wsConnected = false;
+      connected = false;
       setWS(false);
       setBLE(false, "");
       btnScan.disabled = true;
@@ -103,13 +104,16 @@
       btnConnectServer.textContent = "⚡ Connect to Server";
 
       if (wasConnected) {
-        log("Server disconnected", "warn");
-        if (autoReconnect && reconnectAttempts < MAX_RECONNECT) {
+        // 1000 = normal close, 1001 = going away (server shutdown)
+        if (ev.code === 1000 || ev.code === 1001 || ev.code === 1006) {
+          log("Server stopped", "warn");
+          autoReconnect = false;
+        } else if (autoReconnect && reconnectAttempts < MAX_RECONNECT) {
           reconnectAttempts++;
-          log(`Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT}...`, "info");
+          log(`Connection lost — reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT}...`, "info");
           setTimeout(connectServer, 3000);
-        } else if (reconnectAttempts >= MAX_RECONNECT) {
-          log("Server stopped. Click Connect when ready.", "error");
+        } else {
+          log("Server unreachable. Click Connect when ready.", "error");
           autoReconnect = false;
         }
       }

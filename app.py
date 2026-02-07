@@ -135,6 +135,7 @@ class WebServer:
 
     def stop(self):
         if self._loop and self._task:
+            self.running = False  # Mark stopped immediately
             self._loop.call_soon_threadsafe(self._task.cancel)
 
 
