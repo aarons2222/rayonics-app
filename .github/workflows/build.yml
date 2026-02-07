@@ -5,6 +5,14 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version label (e.g. 1.0.0)'
+        required: false
+        default: 'dev'
+
+permissions:
+  contents: write
 
 jobs:
   build-mac:
@@ -23,6 +31,9 @@ jobs:
           pip install -r requirements.txt
           pip install rumps pyinstaller
 
+      - name: Generate icons
+        run: python create_icon.py
+
       - name: Build
         run: python build.py
 
@@ -30,9 +41,9 @@ jobs:
         run: codesign --force --deep --sign - dist/RayonicsKeyReader.app
 
       - name: Zip app bundle
-        run: cd dist && zip -r RayonicsKeyReader-mac.zip RayonicsKeyReader.app
+        run: cd dist && zip -r -y RayonicsKeyReader-mac.zip RayonicsKeyReader.app
 
-      - name: Upload
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: RayonicsKeyReader-mac
@@ -54,11 +65,47 @@ jobs:
           pip install -r requirements.txt
           pip install pystray pyinstaller
 
+      - name: Generate icons
+        run: python create_icon.py
+
       - name: Build
         run: python build.py
 
-      - name: Upload
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: RayonicsKeyReader-win
           path: dist/RayonicsKeyReader.exe
+
+  release:
+    needs: [build-mac, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    name: Create Release
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Rayonics Key Reader ${{ github.ref_name }}"
+          body: |
+            ## Rayonics Key Reader ${{ github.ref_name }}
+
+            **Downloads:**
+            - **macOS**: `RayonicsKeyReader-mac.zip` — Unzip, right-click → Open (first time only)
+            - **Windows**: `RayonicsKeyReader.exe` — Click "More info" → "Run anyway" (unsigned)
+
+            **What it does:**
+            Menu bar (macOS) / system tray (Windows) app that runs a local BLE server.
+            Opens a web UI in your browser to scan, connect, and read Rayonics smart keys.
+
+            **Requirements:**
+            - Bluetooth adapter
+            - Chrome, Edge, Firefox, or Safari
+          files: |
+            artifacts/RayonicsKeyReader-mac/RayonicsKeyReader-mac.zip
+            artifacts/RayonicsKeyReader-win/RayonicsKeyReader.exe

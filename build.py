@@ -12,39 +12,47 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent
+ASSETS = ROOT / "assets"
 
 cli_mode = "--cli" in sys.argv
 entry = "server.py" if cli_mode else "app.py"
 name = "RayonicsKeyReader"
 
+# Data separator differs per platform
+sep = ";" if sys.platform == "win32" else ":"
+
 cmd = [
     sys.executable, "-m", "PyInstaller",
     "--onefile",
     "--name", name,
-    "--add-data", f"static{':' if sys.platform != 'win32' else ';'}static",
+    f"--add-data=static{sep}static",
     "--hidden-import", "bleak",
     "--hidden-import", "aiohttp",
     entry,
 ]
 
+# Platform-specific options
 if not cli_mode:
-    # Hide console window on Windows, make .app on macOS
     if sys.platform == "win32":
         cmd.append("--noconsole")
+        ico = ASSETS / "icon.ico"
+        if ico.exists():
+            cmd.extend(["--icon", str(ico)])
     elif sys.platform == "darwin":
-        cmd.extend([
-            "--windowed",
-            "--osx-bundle-identifier", "com.rayonics.keyreader",
-        ])
+        cmd.append("--windowed")
+        cmd.extend(["--osx-bundle-identifier", "com.rayonics.keyreader"])
+        png = ASSETS / "icon.png"
+        if png.exists():
+            cmd.extend(["--icon", str(png)])
 
 print(f"Building {'GUI' if not cli_mode else 'CLI'} version...")
 print(f"Entry: {entry}")
-print(f"Command: {' '.join(cmd)}")
 print()
 
 subprocess.run(cmd, cwd=ROOT, check=True)
 
 print(f"\nBuilt: dist/{name}")
+
 if sys.platform == "darwin" and not cli_mode:
     # Inject LSUIElement to hide dock icon
     import plistlib
@@ -53,7 +61,9 @@ if sys.platform == "darwin" and not cli_mode:
         with open(plist_path, "rb") as f:
             plist = plistlib.load(f)
         plist["LSUIElement"] = True
+        plist["CFBundleDisplayName"] = "Rayonics Key Reader"
+        plist["CFBundleShortVersionString"] = "1.0.0"
         with open(plist_path, "wb") as f:
             plistlib.dump(plist, f)
-        print("  LSUIElement set (no dock icon)")
+        print("  Plist updated (LSUIElement, display name, version)")
     print(f"  App bundle: dist/{name}.app")

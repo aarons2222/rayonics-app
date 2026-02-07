@@ -1,65 +1,120 @@
 # Rayonics Key Reader
 
-Desktop app that reads and manages Rayonics BLE smart keys via a local web UI.
+A desktop app for reading and managing Rayonics BLE smart keys (B03009, LSD4BT).
 
-A Python WebSocket server handles all BLE communication and cryptography; the browser-based frontend just sends commands and displays results.
+Runs as a lightweight **menu bar** (macOS) or **system tray** (Windows) app — no terminal, no clutter. Opens a web-based UI in your browser for scanning keys, reading events, and viewing key info.
 
-## Quick Start
+## Download
+
+**[Latest Release →](https://github.com/aarons2222/rayonics-app/releases/latest)**
+
+| Platform | File | Notes |
+|----------|------|-------|
+| macOS | `RayonicsKeyReader-mac.zip` | Unzip → right-click → Open (first launch) |
+| Windows | `RayonicsKeyReader.exe` | Click "More info" → "Run anyway" |
+
+> Both are unsigned — macOS Gatekeeper and Windows SmartScreen will warn on first launch. This is normal for developer-distributed apps.
+
+## How It Works
+
+```
+┌──────────────┐     WebSocket      ┌──────────────┐      BLE       ┌──────────┐
+│   Browser    │◄──────────────────►│  Local       │◄──────────────►│ BLE Key  │
+│   (any)      │  ws://localhost    │  Server      │  AES-128-ECB   │ (B03009) │
+│              │                    │  (this app)  │  encrypted     │          │
+└──────────────┘                    └──────────────┘                 └──────────┘
+```
+
+1. **Launch the app** — sits in your menu bar / system tray
+2. **Browser opens** — web UI at `http://localhost:8765`
+3. **Scan** — discovers nearby Rayonics keys
+4. **Click a device** — connects, authenticates, and reads everything automatically
+
+All data stays local. The browser and server are both on your machine — nothing is transmitted over the internet.
+
+## Features
+
+- **Automatic read** — key info, version, battery, and events load immediately on connect
+- **Event log** — timestamps, lock IDs, event types (open, fail, expired, etc.)
+- **Clear events** — optionally wipe the event log after reading
+- **Configurable codes** — set syscode/regcode in the UI
+- **Cross-platform** — macOS (menu bar) and Windows (system tray)
+- **Any browser** — works in Chrome, Edge, Firefox, Safari
+
+## Security
+
+| Segment | Protection |
+|---------|-----------|
+| BLE Key ↔ Server | AES-128-ECB encrypted |
+| Server ↔ Browser | localhost only (never leaves your machine) |
+| No cloud | All data is local. No accounts, no tracking. |
+
+## Running from Source
 
 ```bash
+git clone https://github.com/aarons2222/rayonics-app.git
+cd rayonics-app
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
 # Install dependencies
 pip install -r requirements.txt
+pip install rumps  # macOS only
 
 # Run
-python server.py
+python app.py      # GUI (menu bar / system tray)
+python server.py   # CLI (terminal)
 ```
 
-The server starts on `http://localhost:8765` and auto-opens your browser.
-
-## Usage
-
-1. **Scan** — click the scan button to discover nearby Rayonics keys
-2. **Connect** — click a device to connect (handles CONNECT + VERIFY authentication)
-3. **Read Key** — reads key ID, type, group, battery, version
-4. **Read Events** — reads all stored events (timestamps, lock IDs, event types)
-5. **Clear Events** — check "Clear after read" to wipe events after reading (like the official app)
-6. **Disconnect** — cleanly disconnects from the key
-
-## Architecture
-
-```
-┌──────────────┐      WebSocket       ┌──────────────┐       BLE        ┌────────────┐
-│   Browser    │◄────────────────────►│  server.py   │◄───────────────►│  BLE Key   │
-│  (static/)   │   JSON messages      │ ble_handler  │   Encrypted     │  (B03009)  │
-│  No crypto   │                      │ rayonics_ble │   protocol      │            │
-└──────────────┘                      └──────────────┘                  └────────────┘
-```
-
-- **server.py** — HTTP + WebSocket server (serves static files + handles WS)
-- **ble_handler.py** — translates WS commands to BLE operations
-- **rayonics_ble/** — crypto, packet building, protocol constants (copied from SDK)
-- **static/** — HTML/CSS/JS frontend (dark theme, no frameworks)
-
-## Building a Standalone Executable
+## Building
 
 ```bash
 pip install pyinstaller
-python build.py
+python build.py          # GUI app
+python build.py --cli    # CLI executable
 ```
 
-Creates `dist/RayonicsKeyReader` (or `.exe` on Windows) — a single file that bundles everything.
+Output in `dist/`:
+- macOS: `RayonicsKeyReader.app`
+- Windows: `RayonicsKeyReader.exe`
 
-## Protocol Notes
+## Project Structure
 
-- AES-128-ECB encrypted 19-byte packets over BLE
-- CRC16-KERMIT checksums + XOR integrity bytes
-- Session key derived from random nonce ⊕ device seed + syscode + CRC
-- VERIFY command completes the authentication handshake
-- Events use 1-based indexing with BCD timestamps
-- **No reset commands are exposed** — this tool only reads
+```
+rayonics-app/
+├── app.py              # Menu bar / system tray launcher
+├── server.py           # HTTP + WebSocket server (CLI mode)
+├── ble_handler.py      # BLE protocol handler
+├── rayonics_ble/       # SDK (crypto, constants, models)
+├── static/             # Web UI
+│   ├── index.html
+│   ├── css/style.css
+│   └── js/app.js
+├── assets/             # App icons
+├── build.py            # PyInstaller build script
+├── create_icon.py      # Icon generator
+└── requirements.txt
+```
 
-## Requirements
+## Protocol
 
-- Python 3.9+
-- macOS / Linux / Windows (BLE adapter required)
-- Dependencies: `bleak`, `websockets`, `pycryptodome`
+Supports B03009 encrypted keys:
+- **CONNECT** (0x0D) → nonce exchange
+- **VERIFY** (0x0F) → syscode/regcode auth
+- **GET_KEY_INFO** (0x11) → key ID, type, group, battery
+- **GET_KEY_VERSION** (0x34) → firmware version
+- **GET_EVENT_COUNT** (0x26) → event count
+- **GET_EVENT** (0x27) → individual events (BCD timestamps)
+- **CLEAN_EVENT** (0x2B) → clear event log
+
+## Related
+
+- [rayonics-replacement](https://github.com/aarons2222/rayonics-replacement) — Python SDK (reference library)
+- [rayonics-web](https://github.com/aarons2222/rayonics-web) — Hosted web UI ([live](https://rayonics-web.vercel.app))
+- [rayonics-gui](https://github.com/aarons2222/rayonics-gui) — PySide6 desktop GUI
+
+## License
+
+MIT
