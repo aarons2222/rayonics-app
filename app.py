@@ -254,9 +254,66 @@ if USE_RUMPS:
             server.stop()
             rumps.quit_application()
 
+    def _check_move_to_applications():
+        """Prompt user to move app to /Applications if running from elsewhere."""
+        if not getattr(sys, 'frozen', False):
+            return  # Running from source, skip
+
+        import os
+        app_path = os.path.realpath(sys.executable)
+        # PyInstaller .app bundle: executable is inside .app/Contents/MacOS/
+        # Walk up to find the .app bundle
+        parts = app_path.split(os.sep)
+        app_bundle = None
+        for i, part in enumerate(parts):
+            if part.endswith(".app"):
+                app_bundle = os.sep + os.path.join(*parts[:i+1])
+                break
+
+        if not app_bundle:
+            return
+
+        if app_bundle.startswith("/Applications"):
+            return  # Already in Applications
+
+        app_name = os.path.basename(app_bundle)
+        dest = f"/Applications/{app_name}"
+
+        resp = rumps.alert(
+            title="Move to Applications?",
+            message=(
+                f"eLOQ Sync is running from:\n{os.path.dirname(app_bundle)}\n\n"
+                "Move to Applications folder for easier access?"
+            ),
+            ok="Move to Applications",
+            cancel="Keep Here",
+        )
+
+        if resp == 1:  # OK clicked
+            try:
+                import shutil
+                if os.path.exists(dest):
+                    shutil.rmtree(dest)
+                shutil.move(app_bundle, dest)
+                # Relaunch from new location
+                import subprocess
+                subprocess.Popen(["open", dest])
+                rumps.quit_application()
+                sys.exit(0)
+            except Exception as e:
+                rumps.alert(
+                    title="Move Failed",
+                    message=f"Couldn't move to Applications:\n{e}\n\nDrag the app manually.",
+                    ok="OK",
+                )
+
     def main():
         def startup():
             import time
+
+            # Prompt to move to /Applications
+            _check_move_to_applications()
+
             # Check Bluetooth before anything else
             available, msg = check_bluetooth_available()
             if not available:
