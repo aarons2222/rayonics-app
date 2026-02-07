@@ -282,18 +282,32 @@ class BLEHandler:
         found = []
 
         devices = await BleakScanner.discover(timeout=5.0, return_adv=True)
+        total_seen = 0
         for _addr, (dev, adv) in devices.items():
+            total_seen += 1
             name = dev.name or adv.local_name or ""
-            if not any(name.startswith(p) for p in DEVICE_PREFIXES):
+
+            # Match by name prefix
+            name_match = any(name.startswith(p) for p in DEVICE_PREFIXES)
+
+            # Fallback: match by service UUID (Windows often has empty names)
+            service_match = False
+            if adv.service_uuids:
+                service_match = any(
+                    SERVICE_UUID.lower() in u.lower() for u in adv.service_uuids
+                )
+
+            if not name_match and not service_match:
                 continue
+
             self._scanned[dev.address] = dev
             found.append({
-                "name": name,
+                "name": name or f"Rayonics Key ({dev.address[-5:]})",
                 "address": dev.address,
                 "rssi": adv.rssi or -100,
             })
 
-        await self._log(f"Found {len(found)} device(s)")
+        await self._log(f"Found {len(found)} eLOQ device(s) ({total_seen} total BLE devices seen)")
         await self._emit({"type": "devices", "devices": found})
 
     # ── connect + authenticate ────────────────────────────────────────────
