@@ -41,10 +41,10 @@ if not cli_mode:
             cmd.extend(["--icon", str(ico)])
     elif sys.platform == "darwin":
         cmd.append("--windowed")
-        cmd.extend(["--osx-bundle-identifier", "com.rayonics.keyreader"])
-        png = ASSETS / "icon.png"
-        if png.exists():
-            cmd.extend(["--icon", str(png)])
+        cmd.extend(["--osx-bundle-identifier", "com.eloq.keyreader"])
+        icns = ASSETS / "icon.icns"
+        if icns.exists():
+            cmd.extend(["--icon", str(icns)])
 
 print(f"Building {'GUI' if not cli_mode else 'CLI'} version...")
 print(f"Entry: {entry}")
