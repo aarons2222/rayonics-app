@@ -89,7 +89,7 @@ def create_app():
 def main():
     no_open = "--no-open" in sys.argv
 
-    print(f"Rayonics Key Reader")
+    print(f"eLOQ Sync")
     print(f"  HTTP  → http://{HOST}:{PORT}")
     print(f"  WS    → ws://{HOST}:{PORT}/ws")
     print()

@@ -50,16 +50,16 @@ jobs:
         run: python build.py
 
       - name: Ad-hoc sign
-        run: codesign --force --deep --sign - dist/RayonicsKeyReader.app
+        run: codesign --force --deep --sign - "dist/eLOQ Sync.app"
 
       - name: Zip app bundle
-        run: cd dist && zip -r -y RayonicsKeyReader-mac.zip RayonicsKeyReader.app
+        run: cd dist && zip -r -y eLOQ-Sync-mac.zip "eLOQ Sync.app"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RayonicsKeyReader-mac
-          path: dist/RayonicsKeyReader-mac.zip
+          name: eLOQ-Sync-mac
+          path: dist/eLOQ-Sync-mac.zip
 
   build-windows:
     runs-on: windows-latest
@@ -86,8 +86,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RayonicsKeyReader-win
-          path: dist/RayonicsKeyReader.exe
+          name: eLOQ-Sync-win
+          path: "dist/eLOQ Sync.exe"
 
   release:
     needs: [build-mac, build-windows]
@@ -103,21 +103,21 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Rayonics Key Reader ${{ github.ref_name }}"
+          name: "eLOQ Sync ${{ github.ref_name }}"
           body: |
-            ## Rayonics Key Reader ${{ github.ref_name }}
+            ## eLOQ Sync ${{ github.ref_name }}
 
             **Downloads:**
-            - **macOS**: `RayonicsKeyReader-mac.zip` — Unzip, right-click → Open (first time only)
-            - **Windows**: `RayonicsKeyReader.exe` — Click "More info" → "Run anyway" (unsigned)
+            - **macOS**: `eLOQ-Sync-mac.zip` — Unzip, then: `xattr -cr "eLOQ Sync.app"` → double-click
+            - **Windows**: `eLOQ Sync.exe` — Click "More info" → "Run anyway"
 
             **What it does:**
-            Menu bar (macOS) / system tray (Windows) app that runs a local BLE server.
-            Opens a web UI in your browser to scan, connect, and read Rayonics smart keys.
+            Menu bar (macOS) / system tray (Windows) app that connects to eLOQ BLE smart keys.
+            Opens a web UI in your browser to scan, read key info, and manage events.
 
             **Requirements:**
             - Bluetooth adapter
-            - Chrome, Edge, Firefox, or Safari
+            - Any web browser
           files: |
-            artifacts/RayonicsKeyReader-mac/RayonicsKeyReader-mac.zip
-            artifacts/RayonicsKeyReader-win/RayonicsKeyReader.exe
+            artifacts/eLOQ-Sync-mac/eLOQ-Sync-mac.zip
+            artifacts/eLOQ-Sync-win/eLOQ Sync.exe

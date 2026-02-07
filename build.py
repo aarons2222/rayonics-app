@@ -16,7 +16,7 @@ ASSETS = ROOT / "assets"
 
 cli_mode = "--cli" in sys.argv
 entry = "server.py" if cli_mode else "app.py"
-name = "RayonicsKeyReader"
+name = "eLOQ Sync"
 
 # Data separator differs per platform
 sep = ";" if sys.platform == "win32" else ":"
@@ -41,7 +41,7 @@ if not cli_mode:
             cmd.extend(["--icon", str(ico)])
     elif sys.platform == "darwin":
         cmd.append("--windowed")
-        cmd.extend(["--osx-bundle-identifier", "com.eloq.keyreader"])
+        cmd.extend(["--osx-bundle-identifier", "com.eloq.sync"])
         icns = ASSETS / "icon.icns"
         if icns.exists():
             cmd.extend(["--icon", str(icns)])
@@ -62,7 +62,7 @@ if sys.platform == "darwin" and not cli_mode:
         with open(plist_path, "rb") as f:
             plist = plistlib.load(f)
         plist["LSUIElement"] = True
-        plist["CFBundleDisplayName"] = "Rayonics Key Reader"
+        plist["CFBundleDisplayName"] = "eLOQ Sync"
         plist["CFBundleShortVersionString"] = "1.0.0"
         with open(plist_path, "wb") as f:
             plistlib.dump(plist, f)

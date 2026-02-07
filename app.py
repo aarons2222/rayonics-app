@@ -148,7 +148,7 @@ if USE_RUMPS:
     class TrayApp(rumps.App):
         def __init__(self):
             super().__init__(
-                "Rayonics",
+                "eLOQ Sync",
                 icon=None,
                 quit_button=None,
                 template=True,
@@ -246,11 +246,12 @@ else:
         from PIL import Image
         server.start()
 
-        tray_icon = Image.open(ASSETS_DIR / "icon.png")
+        from PIL import Image as PILImage
+        tray_icon = PILImage.open(ASSETS_DIR / "icon.png")
         icon = pystray.Icon(
-            "eloq",
+            "eloq-sync",
             tray_icon,
-            "eLOQ Key Reader",
+            "eLOQ Sync",
             menu=pystray.Menu(
                 pystray.MenuItem("Open Browser", on_open, default=True),
                 pystray.Menu.SEPARATOR,
