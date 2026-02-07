@@ -416,7 +416,7 @@ else:
         server.stop()
         icon.stop()
 
-    def get_status_text():
+    def get_status_text(item=None):
         return f"Server: Running (:{PORT})" if server.running else "Server: Stopped"
 
     def main():
