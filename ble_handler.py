@@ -287,6 +287,10 @@ class BLEHandler:
             total_seen += 1
             name = dev.name or adv.local_name or ""
 
+            # Log all devices for debugging
+            uuids = ", ".join(adv.service_uuids) if adv.service_uuids else "none"
+            await self._log(f"  BLE: {name or '(unnamed)'} [{dev.address}] RSSI:{adv.rssi} UUIDs:[{uuids}]")
+
             # Match by name prefix
             name_match = any(name.startswith(p) for p in DEVICE_PREFIXES)
 
