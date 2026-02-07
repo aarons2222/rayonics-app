@@ -148,15 +148,13 @@ if USE_RUMPS:
 
     class TrayApp(rumps.App):
         def __init__(self):
+            icon_path = str(ASSETS_DIR / "menubarTemplate.png")
             super().__init__(
                 "eLOQ Sync",
-                icon=None,
+                icon=icon_path,
                 quit_button=None,
                 template=True,
             )
-
-            # Use eLOQ menu bar icon
-            self._icon_file = str(ASSETS_DIR / "menubar.png")
 
             self.menu = [
                 rumps.MenuItem("🟢 Server Running", callback=None),
@@ -173,8 +171,6 @@ if USE_RUMPS:
             self._port_item = self.menu[f"    Port: {PORT}"]
             self._port_item.set_callback(None)
             self._toggle_item = self.menu["Stop Server"]
-
-            self.icon = self._icon_file
 
             # Start server
             server.start()
