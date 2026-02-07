@@ -153,6 +153,31 @@ class WebServer:
 server = WebServer()
 
 
+def check_bluetooth_available() -> tuple[bool, str]:
+    """Check if a Bluetooth adapter is available. Returns (available, message)."""
+    import asyncio as _asyncio
+
+    async def _check():
+        try:
+            from bleak import BleakScanner
+            await BleakScanner.discover(timeout=1.0, return_adv=True)
+            return True, "Bluetooth adapter found"
+        except Exception as exc:
+            err = str(exc).lower()
+            if "bluetooth" in err and ("off" in err or "disabled" in err or "not powered" in err):
+                return False, "Bluetooth is turned off.\nEnable it in System Settings → Bluetooth."
+            elif "not found" in err or "no adapter" in err or "not available" in err:
+                return False, "No Bluetooth adapter found.\nPlug in a USB Bluetooth dongle."
+            else:
+                return False, f"Bluetooth error: {exc}"
+
+    loop = _asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(_check())
+    finally:
+        loop.close()
+
+
 # ── macOS menu bar (rumps) ────────────────────────────────────────────────
 
 if USE_RUMPS:
@@ -183,8 +208,7 @@ if USE_RUMPS:
             self._port_item.set_callback(None)
             self._toggle_item = self.menu["Stop Server"]
 
-            # Start server
-            server.start()
+            # Server started by main() after Bluetooth check
 
             # Poll status
             self._timer = rumps.Timer(self._check_status, 1)
@@ -206,14 +230,21 @@ if USE_RUMPS:
             if server.running:
                 server.stop()
             else:
-                server.start()
-                # Open browser after a delay
-                def delayed_open():
+                def restart():
                     import time
+                    available, msg = check_bluetooth_available()
+                    if not available:
+                        rumps.alert(
+                            title="eLOQ Sync — Bluetooth Required",
+                            message=msg,
+                            ok="OK",
+                        )
+                        return
+                    server.start()
                     time.sleep(1.5)
                     if server.running:
                         webbrowser.open(f"http://{HOST}:{PORT}")
-                threading.Thread(target=delayed_open, daemon=True).start()
+                threading.Thread(target=restart, daemon=True).start()
 
         def open_browser(self, _):
             if server.running:
@@ -224,14 +255,26 @@ if USE_RUMPS:
             rumps.quit_application()
 
     def main():
-        # Auto-open browser after server starts
-        def delayed_open():
+        def startup():
             import time
-            time.sleep(2)
+            # Check Bluetooth before anything else
+            available, msg = check_bluetooth_available()
+            if not available:
+                rumps.alert(
+                    title="eLOQ Sync — Bluetooth Required",
+                    message=msg,
+                    ok="Quit",
+                )
+                rumps.quit_application()
+                return
+
+            # Start server and open browser
+            server.start()
+            time.sleep(1.5)
             if server.running:
                 webbrowser.open(f"http://{HOST}:{PORT}")
 
-        threading.Thread(target=delayed_open, daemon=True).start()
+        threading.Thread(target=startup, daemon=True).start()
         TrayApp().run()
 
 
@@ -251,10 +294,24 @@ else:
         return f"Server: Running (:{PORT})" if server.running else "Server: Stopped"
 
     def main():
-        from PIL import Image
-        server.start()
+        # Check Bluetooth before starting
+        available, msg = check_bluetooth_available()
+        if not available:
+            # Show error dialog
+            try:
+                import tkinter as tk
+                from tkinter import messagebox
+                root = tk.Tk()
+                root.withdraw()
+                messagebox.showerror("eLOQ Sync — Bluetooth Required", msg)
+                root.destroy()
+            except Exception:
+                print(f"ERROR: {msg}")
+            return
 
         from PIL import Image as PILImage
+        server.start()
+
         tray_icon = PILImage.open(ASSETS_DIR / "icon.png")
         icon = pystray.Icon(
             "eloq-sync",
@@ -272,7 +329,7 @@ else:
         # Auto-open browser
         def delayed_open():
             import time
-            time.sleep(2)
+            time.sleep(1.5)
             if server.running:
                 webbrowser.open(f"http://{HOST}:{PORT}")
 
