@@ -145,6 +145,8 @@ class BLEHandler:
         try:
             if action == "set_codes":
                 await self.set_codes(msg.get("syscode", ""), msg.get("regcode", ""))
+            elif action == "check_bluetooth":
+                await self.check_bluetooth()
             elif action == "scan":
                 await self.scan()
             elif action == "connect":
@@ -162,6 +164,82 @@ class BLEHandler:
         except Exception as exc:
             await self._error(f"{type(exc).__name__}: {exc}")
             traceback.print_exc()
+
+    # ── bluetooth check ──────────────────────────────────────────────────
+
+    async def check_bluetooth(self):
+        """Check if a Bluetooth adapter is available and powered on."""
+        import platform
+        adapter_info = {
+            "platform": platform.system(),
+            "available": False,
+            "adapter": None,
+            "error": None,
+        }
+
+        try:
+            # Quick scan with 1s timeout — if it doesn't throw, adapter works
+            await BleakScanner.discover(timeout=1.0, return_adv=True)
+            adapter_info["available"] = True
+            adapter_info["adapter"] = "Built-in or USB adapter detected"
+        except Exception as exc:
+            err = str(exc).lower()
+            if "bluetooth" in err and ("off" in err or "disabled" in err or "not powered" in err):
+                adapter_info["error"] = "Bluetooth is turned off. Enable it in system settings."
+            elif "not found" in err or "no adapter" in err or "not available" in err:
+                adapter_info["error"] = "No Bluetooth adapter found. Plug in a USB Bluetooth dongle."
+            else:
+                adapter_info["available"] = False
+                adapter_info["error"] = f"Bluetooth error: {exc}"
+
+        # Platform-specific adapter details
+        if platform.system() == "Darwin":
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["system_profiler", "SPBluetoothDataType", "-json"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    import json
+                    data = json.loads(result.stdout)
+                    bt = data.get("SPBluetoothDataType", [{}])[0]
+                    ctrl = bt.get("controller_properties", {})
+                    adapter_info["adapter"] = ctrl.get("controller_chipset", "Apple Bluetooth")
+                    adapter_info["address"] = ctrl.get("controller_address", "")
+                    state = ctrl.get("controller_state", "")
+                    if state:
+                        adapter_info["state"] = state
+                        if state.lower() != "attrib_on":
+                            adapter_info["available"] = False
+                            adapter_info["error"] = "Bluetooth is turned off. Enable it in system settings."
+            except Exception:
+                pass
+
+        elif platform.system() == "Windows":
+            adapter_info["adapter"] = adapter_info.get("adapter") or "Windows Bluetooth"
+
+        elif platform.system() == "Linux":
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["hciconfig"], capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    lines = result.stdout.strip().split("\n")
+                    adapter_info["adapter"] = lines[0].split(":")[0] if lines else "hci0"
+                    if "UP RUNNING" in result.stdout:
+                        adapter_info["state"] = "UP"
+                    elif "DOWN" in result.stdout:
+                        adapter_info["available"] = False
+                        adapter_info["state"] = "DOWN"
+                        adapter_info["error"] = "Bluetooth adapter is down. Run: sudo hciconfig hci0 up"
+                else:
+                    adapter_info["error"] = "No Bluetooth adapter found. Plug in a USB Bluetooth dongle."
+            except FileNotFoundError:
+                pass  # hciconfig not available, rely on bleak check
+
+        await self._emit({"type": "bluetooth_status", **adapter_info})
 
     # ── set codes ─────────────────────────────────────────────────────────
 

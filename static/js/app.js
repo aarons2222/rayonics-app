@@ -12,6 +12,8 @@
 
   const wsIndicator  = $("#ws-indicator");
   const wsLabel      = $("#ws-label");
+  const btIndicator  = $("#bt-indicator");
+  const btLabel      = $("#bt-label");
   const bleIndicator = $("#ble-indicator");
   const bleLabel     = $("#ble-label");
 
@@ -88,8 +90,9 @@
       btnConnectServer.disabled = false;
       log("Connected to server", "success");
 
-      // Send config (syscode/regcode) to server
+      // Send config (syscode/regcode) to server, then check adapter
       send({ action: "set_codes", syscode: sys, regcode: reg });
+      send({ action: "check_bluetooth" });
     };
 
     ws.onclose = (ev) => {
@@ -98,6 +101,8 @@
       connected = false;
       setWS(false);
       setBLE(false, "");
+      btIndicator.className = "indicator disconnected";
+      btLabel.textContent = "Adapter ✗";
       btnScan.disabled = true;
       btnDisconnect.disabled = true;
       btnConnectServer.disabled = false;
@@ -144,6 +149,7 @@
 
   function handleMessage(msg) {
     switch (msg.type) {
+      case "bluetooth_status": onBluetoothStatus(msg); break;
       case "devices":   onDevices(msg.devices); break;
       case "key_info":  onKeyInfo(msg.data);    break;
       case "events":    onEvents(msg.data);     break;
@@ -156,6 +162,20 @@
   }
 
   // ── Handlers ───────────────────────────────────────────────────────────
+
+  function onBluetoothStatus(msg) {
+    if (msg.available) {
+      btIndicator.className = "indicator connected";
+      btLabel.textContent = msg.adapter || "Adapter ✓";
+      btnScan.disabled = false;
+      log(`Bluetooth: ${msg.adapter || "available"}${msg.address ? ` (${msg.address})` : ""}`, "success");
+    } else {
+      btIndicator.className = "indicator disconnected";
+      btLabel.textContent = "Adapter ✗";
+      btnScan.disabled = true;
+      log(msg.error || "No Bluetooth adapter found", "error");
+    }
+  }
 
   function onDevices(devices) {
     busy = false;
