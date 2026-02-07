@@ -36,6 +36,13 @@ if not USE_RUMPS:
 HOST = "localhost"
 PORT = 8765
 
+# Allowed WebSocket origins (prevents drive-by connections from random websites)
+ALLOWED_ORIGINS = {
+    f"http://localhost:{PORT}",
+    f"http://127.0.0.1:{PORT}",
+    "https://rayonics-web.vercel.app",
+}
+
 # When running from PyInstaller bundle, files are in sys._MEIPASS
 if getattr(sys, 'frozen', False):
     BASE_DIR = Path(sys._MEIPASS)
@@ -58,6 +65,10 @@ class WebServer:
         self.running = False
 
     async def _ws_handler(self, request):
+        origin = request.headers.get("Origin", "")
+        if origin and origin not in ALLOWED_ORIGINS:
+            return web.Response(status=403, text="Forbidden: origin not allowed")
+
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
