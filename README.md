@@ -1,4 +1,4 @@
-# Rayonics Key Reader
+# eLOQ Sync
 
 A desktop app for reading and managing Rayonics BLE smart keys (B03009, LSD4BT).
 
