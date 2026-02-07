@@ -280,38 +280,49 @@ class BLEHandler:
         await self._log("Scanning for BLE devices…")
         self._scanned.clear()
         found = []
+        unknown = []
+
+        import platform
+        is_windows = platform.system() == "Windows"
 
         devices = await BleakScanner.discover(timeout=5.0, return_adv=True)
-        total_seen = 0
         for _addr, (dev, adv) in devices.items():
-            total_seen += 1
             name = dev.name or adv.local_name or ""
-
-            # Log all devices for debugging
-            uuids = ", ".join(adv.service_uuids) if adv.service_uuids else "none"
-            await self._log(f"  BLE: {name or '(unnamed)'} [{dev.address}] RSSI:{adv.rssi} UUIDs:[{uuids}]")
 
             # Match by name prefix
             name_match = any(name.startswith(p) for p in DEVICE_PREFIXES)
 
-            # Fallback: match by service UUID (Windows often has empty names)
+            # Fallback: match by service UUID
             service_match = False
             if adv.service_uuids:
                 service_match = any(
                     SERVICE_UUID.lower() in u.lower() for u in adv.service_uuids
                 )
 
-            if not name_match and not service_match:
-                continue
+            if name_match or service_match:
+                self._scanned[dev.address] = dev
+                found.append({
+                    "name": name or f"Rayonics Key ({dev.address[-5:]})",
+                    "address": dev.address,
+                    "rssi": adv.rssi or -100,
+                })
+            elif is_windows and not name:
+                # Windows often hides BLE device names/UUIDs — collect unnamed devices
+                unknown.append((dev, adv))
 
-            self._scanned[dev.address] = dev
-            found.append({
-                "name": name or f"Rayonics Key ({dev.address[-5:]})",
-                "address": dev.address,
-                "rssi": adv.rssi or -100,
-            })
+        # On Windows: if no known devices found but unnamed ones exist,
+        # show them so the user can try connecting (auth will fail on non-Rayonics)
+        if is_windows and len(found) == 0 and len(unknown) > 0:
+            await self._log(f"No named eLOQ devices found — showing {len(unknown)} unnamed device(s) (Windows BLE limitation)")
+            for dev, adv in unknown:
+                self._scanned[dev.address] = dev
+                found.append({
+                    "name": f"Unknown BLE ({dev.address[-8:]})",
+                    "address": dev.address,
+                    "rssi": adv.rssi or -100,
+                })
 
-        await self._log(f"Found {len(found)} eLOQ device(s) ({total_seen} total BLE devices seen)")
+        await self._log(f"Found {len(found)} device(s)")
         await self._emit({"type": "devices", "devices": found})
 
     # ── connect + authenticate ────────────────────────────────────────────
