@@ -63,6 +63,7 @@ class WebServer:
         self._thread = None
         self._task = None
         self.running = False
+        self.ble_active = False  # True during BLE operations (scan/connect/read)
 
     async def _ws_handler(self, request):
         origin = request.headers.get("Origin", "")
@@ -72,11 +73,20 @@ class WebServer:
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
+        srv = self  # reference for activity flag
+
         async def send_json(msg: dict):
             if not ws.closed:
                 await ws.send_str(json.dumps(msg))
+                # Track BLE activity from message types
+                mtype = msg.get("type", "")
+                if mtype in ("devices", "key_info", "events", "status"):
+                    srv.ble_active = False  # operation completed
 
         handler = BLEHandler(send=send_json)
+
+        # BLE actions that indicate activity
+        ACTIVE_ACTIONS = {"scan", "connect", "read_key", "read_events", "clear_events"}
 
         try:
             async for msg in ws:
@@ -86,10 +96,13 @@ class WebServer:
                     except json.JSONDecodeError:
                         await send_json({"type": "error", "message": "Invalid JSON"})
                         continue
+                    if data.get("action") in ACTIVE_ACTIONS:
+                        srv.ble_active = True
                     await handler.handle(data)
                 elif msg.type == web.WSMsgType.ERROR:
                     pass
         finally:
+            srv.ble_active = False
             await handler.disconnect(silent=True)
 
         return ws
@@ -184,10 +197,13 @@ if USE_RUMPS:
 
     class TrayApp(rumps.App):
         def __init__(self):
-            icon_path = str(ASSETS_DIR / "menubarTemplate.png")
+            self._icon_normal = str(ASSETS_DIR / "menubarTemplate.png")
+            self._icon_active = str(ASSETS_DIR / "menubarActive.png")
+            self._flash_on = False
+
             super().__init__(
                 "eLOQ Sync",
-                icon=icon_path,
+                icon=self._icon_normal,
                 quit_button=None,
                 template=True,
             )
@@ -210,8 +226,8 @@ if USE_RUMPS:
 
             # Server started by main() after Bluetooth check
 
-            # Poll status
-            self._timer = rumps.Timer(self._check_status, 1)
+            # Poll status (0.5s for smooth icon flash)
+            self._timer = rumps.Timer(self._check_status, 0.5)
             self._timer.start()
 
         def _check_status(self, _):
@@ -219,11 +235,30 @@ if USE_RUMPS:
                 self._status_item.title = "🟢 Server Running"
                 self._port_item.title = f"    http://localhost:{PORT}"
                 self._toggle_item.title = "⏹ Stop Server"
+
+                # Flash icon during BLE activity
+                if server.ble_active:
+                    self._flash_on = not self._flash_on
+                    if self._flash_on:
+                        self.icon = self._icon_active
+                        self.template = False  # Show colour
+                    else:
+                        self.icon = self._icon_normal
+                        self.template = True
+                elif not self.template:
+                    # Activity just ended, restore normal icon
+                    self.icon = self._icon_normal
+                    self.template = True
+                    self._flash_on = False
+
                 self.title = ""
             else:
                 self._status_item.title = "🔴 Server Stopped"
                 self._port_item.title = ""
                 self._toggle_item.title = "▶ Start Server"
+                self.icon = self._icon_normal
+                self.template = True
+                self._flash_on = False
                 self.title = ""
 
         def toggle_server(self, _):
